@@ -418,7 +418,7 @@ const PLANS = [
   },
 ];
 
-function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustomer }) {
+function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustomer, campaignsUsed }) {
   const [billingMsg, setBillingMsg]     = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(null); // plan id being loaded
   const [portalLoading, setPortalLoading]     = useState(false);
@@ -528,21 +528,21 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
         <div style={{ color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>YOUR PLAN LIMITS</div>
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
           {[
-            { label: "Campaigns", limit: usageLimits.campaigns },
-            { label: "AI Generations", limit: usageLimits.ai },
-            { label: "Posts Published", limit: usageLimits.posts },
+            { label: "Campaigns",       used: activePlan === "free" ? (campaignsUsed || 0) : null, limit: usageLimits.campaigns },
+            { label: "AI Generations",  used: activePlan === "free" ? 0 : null,                    limit: usageLimits.ai },
+            { label: "Posts Published", used: activePlan === "free" ? 0 : null,                    limit: usageLimits.posts },
           ].map(m => (
             <div key={m.label} style={{ minWidth: 110 }}>
               <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>{m.label.toUpperCase()}</div>
               <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
-                {m.limit === "∞"
-                  ? <span style={{ color: "#2ECC71" }}>∞</span>
-                  : <>{0}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{m.limit}</span></>
+                {m.used !== null
+                  ? <>{m.used}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{m.limit}</span></>
+                  : <span style={{ color: "#2ECC71" }}>∞</span>
                 }
               </div>
-              {m.limit !== "∞" && (
+              {m.used !== null && (
                 <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.08)", marginTop: 8, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "0%", background: "linear-gradient(90deg, #1A8A3C, #2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
+                  <div style={{ height: "100%", width: `${Math.min((m.used / m.limit) * 100, 100)}%`, background: m.used >= m.limit ? "linear-gradient(90deg, #ef4444, #f87171)" : "linear-gradient(90deg, #1A8A3C, #2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
                 </div>
               )}
             </div>
@@ -1176,6 +1176,11 @@ export default function App() {
   const [planPeriodEnd, setPlanPeriodEnd]     = useState(null);
   const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
   const [billingLoading, setBillingLoading]   = useState(false);
+  const [campaignsThisMonth, setCampaignsThisMonth] = useState(0);
+  const [planImageEnabled, setPlanImageEnabled] = useState(false);
+  const [planVideoEnabled, setPlanVideoEnabled] = useState(false);
+  const [planCampaignLimit, setPlanCampaignLimit] = useState(3);
+  const [planPlatformLimit, setPlanPlatformLimit] = useState(2);
 
   // ── Ayrshare ──────────────────────────────────
   const [ayrshareKey, setAyrshareKey] = useState("");
@@ -1269,6 +1274,11 @@ export default function App() {
         setUserPlan(data.plan || "free");
         setPlanPeriodEnd(data.planPeriodEnd || null);
         setHasStripeCustomer(!!data.hasCustomer);
+        setCampaignsThisMonth(data.campaignsThisMonth || 0);
+        setPlanImageEnabled(!!data.imageEnabled);
+        setPlanVideoEnabled(!!data.videoEnabled);
+        setPlanCampaignLimit(data.campaignLimit || 3);
+        setPlanPlatformLimit(data.platformLimit || 2);
       } catch (e) { /* silent — defaults to free */ }
     };
     fetchBillingStatus();
@@ -1444,11 +1454,21 @@ export default function App() {
         headers: authHeaders(),
         body: JSON.stringify({ businessDesc, adGoal, platforms: platformNames, images }),
       });
-      const data   = await resp.json();
+      const data = await resp.json();
+
+      // Plan limit gate
+      if (resp.status === 403 && data.code === "PLAN_LIMIT") {
+        setScreen("input");
+        setError(data.message + " — ");
+        // Show upgrade CTA inline via error — handled in input screen
+        return;
+      }
+
       const raw    = data.content?.find(b => b.type === "text")?.text || "";
       const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
       setAds(parsed);
       setApprovedAds(new Array(parsed.length).fill(false));
+      setCampaignsThisMonth(prev => prev + 1); // optimistic update
       setScreen("review");
     } catch (e) { setError("Generation failed: " + e.message); setScreen("input"); }
   };
@@ -1578,7 +1598,7 @@ export default function App() {
   const generateImage = async (adIdx) => {
     const ad = ads[adIdx];
     if (!ad) return;
-    setAdVisuals(prev => ({ ...prev, [adIdx]: { ...(prev[adIdx] || {}), imageLoading: true, imageUrl: null } }));
+    setAdVisuals(prev => ({ ...prev, [adIdx]: { ...(prev[adIdx] || {}), imageLoading: true, imageUrl: null, imagePlanLimit: false } }));
     try {
       // Use first uploaded product image as source if available
       const sourceImg = uploadedImages[0];
@@ -1596,8 +1616,12 @@ export default function App() {
         method: "POST", headers: authHeaders(), body: JSON.stringify(body),
       });
       const data = await resp.json();
+      if (resp.status === 403 && data.code === "PLAN_LIMIT") {
+        setAdVisuals(prev => ({ ...prev, [adIdx]: { ...(prev[adIdx] || {}), imageLoading: false, imageUrl: null, imagePlanLimit: true } }));
+        return;
+      }
       if (data.status === "error") throw new Error(data.message);
-      setAdVisuals(prev => ({ ...prev, [adIdx]: { ...(prev[adIdx] || {}), imageLoading: false, imageUrl: data.imageUrl } }));
+      setAdVisuals(prev => ({ ...prev, [adIdx]: { ...(prev[adIdx] || {}), imageLoading: false, imageUrl: data.imageUrl, imagePlanLimit: false } }));
     } catch (e) {
       setAdVisuals(prev => ({ ...prev, [adIdx]: { ...(prev[adIdx] || {}), imageLoading: false, imageUrl: null } }));
       setError("Image generation failed: " + e.message);
@@ -1982,7 +2006,16 @@ export default function App() {
             <div style={S.h1}>Build Your<br /><span style={{ color: "#2ECC71" }}>Campaign.</span></div>
             <div style={S.sub}>Describe your business, set your goal, pick your platforms, and optionally upload product photos.</div>
 
-            {error && <Notice type="error">{error}</Notice>}
+            {error && (
+              <Notice type="error">
+                {error}
+                {error.includes("campaigns for this month") && (
+                  <button onClick={() => { setError(""); setScreen("billing"); }} style={{ background: "none", border: "none", color: "#FCA5A5", textDecoration: "underline", cursor: "pointer", fontFamily: "inherit", fontSize: "inherit", padding: 0, fontWeight: 700 }}>
+                    Upgrade now →
+                  </button>
+                )}
+              </Notice>
+            )}
 
             <div style={S.row}>
               {/* Business */}
@@ -2004,21 +2037,31 @@ export default function App() {
               {/* Social platforms */}
               <div>
                 <label style={S.lbl}>Post To ({profiles.length} connected platforms)</label>
+                {userPlan === "free" && (
+                  <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginBottom: 8 }}>
+                    Free plan: up to {planPlatformLimit} platforms. <button onClick={() => setScreen("billing")} style={{ background: "none", border: "none", color: "#2ECC71", fontSize: 12, cursor: "pointer", fontFamily: "inherit", padding: 0, fontWeight: 700 }}>Upgrade for all 10 →</button>
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {profiles.map(profile => {
                     const sel  = selectedPlatforms.includes(profile.platform);
                     const meta = PLATFORM_META[profile.platform] || { icon: "📱", name: profile.platform };
+                    const atLimit = !sel && userPlan === "free" && selectedPlatforms.length >= planPlatformLimit;
                     return (
                       <button key={profile.platform}
-                        onClick={() => setSelectedPlatforms(prev =>
-                          sel ? prev.filter(p => p !== profile.platform) : [...prev, profile.platform]
-                        )}
+                        onClick={() => {
+                          if (atLimit) { setScreen("billing"); return; }
+                          setSelectedPlatforms(prev =>
+                            sel ? prev.filter(p => p !== profile.platform) : [...prev, profile.platform]
+                          );
+                        }}
                         style={{
                           display: "flex", alignItems: "center", gap: 13,
-                          background: sel ? "rgba(46,204,113,0.08)" : "rgba(255,255,255,0.025)",
-                          border: `1.5px solid ${sel ? "#2ECC71" : "rgba(46,204,113,0.12)"}`,
-                          borderRadius: 10, padding: "12px 15px", cursor: "pointer",
+                          background: sel ? "rgba(46,204,113,0.08)" : atLimit ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.025)",
+                          border: `1.5px solid ${sel ? "#2ECC71" : atLimit ? "rgba(255,255,255,0.04)" : "rgba(46,204,113,0.12)"}`,
+                          borderRadius: 10, padding: "12px 15px", cursor: atLimit ? "not-allowed" : "pointer",
                           fontFamily: "inherit", textAlign: "left", transition: "all 0.2s",
+                          opacity: atLimit ? 0.4 : 1,
                         }}>
                         <span style={{ fontSize: 22 }}>{meta.icon}</span>
                         <div style={{ flex: 1 }}>
@@ -2027,7 +2070,10 @@ export default function App() {
                           </div>
                           <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 12 }}>{meta.name}</div>
                         </div>
-                        <span style={{ color: sel ? "#2ECC71" : "rgba(255,255,255,0.25)", fontSize: 17 }}>{sel ? "●" : "○"}</span>
+                        {atLimit
+                          ? <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 13 }}>🔒</span>
+                          : <span style={{ color: sel ? "#2ECC71" : "rgba(255,255,255,0.25)", fontSize: 17 }}>{sel ? "●" : "○"}</span>
+                        }
                       </button>
                     );
                   })}
@@ -2155,6 +2201,7 @@ export default function App() {
                 const vis           = adVisuals[i] || {};
                 const imgLoading    = vis.imageLoading;
                 const imgUrl        = vis.imageUrl;
+                const imgPlanLimit  = vis.imagePlanLimit;
                 const vidStatus     = vis.videoStatus;
                 const vidUrl        = vis.videoUrl;
                 const vidPlanLimit  = vidStatus === "plan_limit";
@@ -2174,13 +2221,13 @@ export default function App() {
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: imgUrl ? 14 : 0 }}>
                         <div>
                           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", marginBottom: 2 }}>🖼 AI Image</div>
-                          {!imgUrl && !imgLoading && (
+                          {!imgUrl && !imgLoading && !imgPlanLimit && (
                             <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12 }}>
                               {uploadedImages.length > 0 ? "Transforms your product photo" : "Generates from your ad copy"}
                             </div>
                           )}
                         </div>
-                        {!imgLoading && !imgUrl && (
+                        {!imgLoading && !imgUrl && !imgPlanLimit && (
                           <button
                             onClick={() => generateImage(i)}
                             style={{ background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 9, padding: "10px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 3px 14px rgba(46,204,113,0.28)", flexShrink: 0 }}>
@@ -2200,6 +2247,20 @@ export default function App() {
                           </button>
                         )}
                       </div>
+                      {imgPlanLimit && (
+                        <div style={{ borderRadius: 10, padding: "18px 20px", background: "rgba(77,255,143,0.04)", border: "1.5px solid rgba(77,255,143,0.2)", display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
+                          <div style={{ fontSize: 26, flexShrink: 0 }}>🔒</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ color: "#4DFF8F", fontWeight: 700, fontSize: 13, marginBottom: 3 }}>Pro Feature</div>
+                            <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 12.5, lineHeight: 1.55 }}>AI image generation is available on Pro and Agency plans.</div>
+                          </div>
+                          <button
+                            onClick={() => setScreen("billing")}
+                            style={{ background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}>
+                            Upgrade →
+                          </button>
+                        </div>
+                      )}
                       {imgUrl && (
                         <div style={{ borderRadius: 10, overflow: "hidden", aspectRatio: "16/9", background: "#000" }}>
                           <img src={imgUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
@@ -2641,7 +2702,7 @@ export default function App() {
 
         {/* ══════════ BILLING ══════════ */}
         {screen === "billing" && (
-          <BillingScreen user={user} session={session} userPlan={userPlan} planPeriodEnd={planPeriodEnd} hasStripeCustomer={hasStripeCustomer} />
+          <BillingScreen user={user} session={session} userPlan={userPlan} planPeriodEnd={planPeriodEnd} hasStripeCustomer={hasStripeCustomer} campaignsUsed={campaignsThisMonth} />
         )}
 
       </div>
