@@ -1622,7 +1622,17 @@ export default function App() {
   const [savedKeyLoading, setSavedKeyLoading]     = useState(false);
 
   // ── Campaign ──────────────────────────────────
-  const [screen, setScreen]             = useState("connect");
+  // ── Campaign ── (screen persisted to URL hash for reload resilience)
+  const HASH_SCREENS = new Set(["input","connect","dashboard","analytics","account","billing","visuals"]);
+  const getInitialScreen = () => {
+    const hash = window.location.hash.replace("#", "");
+    return HASH_SCREENS.has(hash) ? hash : "connect";
+  };
+  const [screen, setScreenRaw]          = useState(getInitialScreen);
+  const setScreen = (s) => {
+    if (HASH_SCREENS.has(s)) window.history.replaceState({}, "", "#" + s);
+    setScreenRaw(s);
+  };
   const [businessDesc, setBusinessDesc] = useState("");
   const [adGoal, setAdGoal]             = useState("");
   const [uploadedImages, setUploadedImages] = useState([]);
@@ -1811,6 +1821,7 @@ export default function App() {
   // ── Logout ────────────────────────────────────
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    window.history.replaceState({}, "", window.location.pathname); // clear hash on logout
     setUser(null); setSession(null);
     setScreen("connect"); setAyrshareKey(""); setKeyInput("");
     setProfiles([]); setSelectedPlatforms([]);
