@@ -418,12 +418,71 @@ const PLANS = [
   },
 ];
 
-function BillingScreen({ user, session }) {
-  const [billingMsg, setBillingMsg] = useState(null);
+function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustomer }) {
+  const [billingMsg, setBillingMsg]     = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(null); // plan id being loaded
+  const [portalLoading, setPortalLoading]     = useState(false);
 
-  const handleUpgrade = (planId) => {
-    setBillingMsg({ type: "info", text: `Stripe billing for the ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan is coming soon. We'll notify you at ${user?.email} when it launches.` });
+  const authHdrs = () => ({
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${session?.access_token}`,
+  });
+
+  const handleUpgrade = async (planId) => {
+    setCheckoutLoading(planId);
+    setBillingMsg(null);
+    try {
+      const resp = await fetch(`${BACKEND_URL}/billing/create-checkout`, {
+        method: "POST",
+        headers: authHdrs(),
+        body: JSON.stringify({ plan: planId }),
+      });
+      const data = await resp.json();
+      if (data.url) {
+        window.location.href = data.url; // redirect to Stripe Checkout
+      } else {
+        setBillingMsg({ type: "error", text: data.message || "Unable to start checkout. Please try again." });
+      }
+    } catch (e) {
+      setBillingMsg({ type: "error", text: "Checkout error: " + e.message });
+    } finally {
+      setCheckoutLoading(null);
+    }
   };
+
+  const handleManageBilling = async () => {
+    setPortalLoading(true);
+    setBillingMsg(null);
+    try {
+      const resp = await fetch(`${BACKEND_URL}/billing/create-portal`, {
+        method: "POST",
+        headers: authHdrs(),
+      });
+      const data = await resp.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setBillingMsg({ type: "error", text: data.message || "Could not open billing portal." });
+      }
+    } catch (e) {
+      setBillingMsg({ type: "error", text: "Portal error: " + e.message });
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const activePlan  = userPlan || "free";
+  const periodLabel = planPeriodEnd
+    ? new Date(planPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
+
+  // Resolve PLANS with current plan as active
+  const resolvedPlans = PLANS.map(p => ({ ...p, current: p.id === activePlan }));
+  const usageLimits = {
+    free:   { campaigns: 3, ai: 9,     posts: 15 },
+    pro:    { campaigns: "∞", ai: "∞",  posts: "∞" },
+    agency: { campaigns: "∞", ai: "∞",  posts: "∞" },
+  }[activePlan] || { campaigns: 3, ai: 9, posts: 15 };
 
   return (
     <div style={{ animation: "up 0.35s ease both" }}>
@@ -437,39 +496,68 @@ function BillingScreen({ user, session }) {
       </div>
 
       {billingMsg && (
-        <div style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 10, padding: "13px 16px", color: "#93C5FD", fontSize: 13, lineHeight: 1.65, marginBottom: 20 }}>
+        <div style={{ background: billingMsg.type === "error" ? "rgba(239,68,68,0.08)" : "rgba(59,130,246,0.08)", border: `1px solid ${billingMsg.type === "error" ? "rgba(239,68,68,0.25)" : "rgba(59,130,246,0.25)"}`, borderRadius: 10, padding: "13px 16px", color: billingMsg.type === "error" ? "#FCA5A5" : "#93C5FD", fontSize: 13, lineHeight: 1.65, marginBottom: 20 }}>
           {billingMsg.text}
+        </div>
+      )}
+
+      {/* ── Plan status banner (paid plans) ── */}
+      {activePlan !== "free" && (
+        <div style={{ background: "rgba(46,204,113,0.06)", border: "1px solid rgba(46,204,113,0.22)", borderRadius: 14, padding: "16px 22px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ color: "#2ECC71", fontWeight: 800, fontSize: 13, marginBottom: 3 }}>
+              ✓ {activePlan.charAt(0).toUpperCase() + activePlan.slice(1)} Plan — Active
+            </div>
+            {periodLabel && (
+              <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 12.5 }}>
+                Renews {periodLabel}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleManageBilling}
+            disabled={portalLoading}
+            style={{ background: "rgba(46,204,113,0.1)", border: "1px solid rgba(46,204,113,0.3)", color: "#2ECC71", borderRadius: 9, padding: "9px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", opacity: portalLoading ? 0.6 : 1 }}>
+            {portalLoading ? "Loading…" : "Manage Billing →"}
+          </button>
         </div>
       )}
 
       {/* ── Current usage summary ── */}
       <div style={{ background: "rgba(46,204,113,0.05)", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 16, padding: "22px 26px", marginBottom: 24 }}>
-        <div style={{ color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>CURRENT BILLING PERIOD</div>
+        <div style={{ color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>YOUR PLAN LIMITS</div>
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
           {[
-            { label: "Campaigns", used: 0, limit: 3 },
-            { label: "AI Generations", used: 0, limit: 9 },
-            { label: "Posts Published", used: 0, limit: 15 },
+            { label: "Campaigns", limit: usageLimits.campaigns },
+            { label: "AI Generations", limit: usageLimits.ai },
+            { label: "Posts Published", limit: usageLimits.posts },
           ].map(m => (
             <div key={m.label} style={{ minWidth: 110 }}>
               <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>{m.label.toUpperCase()}</div>
               <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
-                {m.used}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{m.limit}</span>
+                {m.limit === "∞"
+                  ? <span style={{ color: "#2ECC71" }}>∞</span>
+                  : <>{0}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{m.limit}</span></>
+                }
               </div>
-              <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.08)", marginTop: 8, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${(m.used / m.limit) * 100}%`, background: "linear-gradient(90deg, #1A8A3C, #2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
-              </div>
+              {m.limit !== "∞" && (
+                <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.08)", marginTop: 8, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: "0%", background: "linear-gradient(90deg, #1A8A3C, #2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
+                </div>
+              )}
             </div>
           ))}
         </div>
-        <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: 16 }}>
-          Resets at the start of each billing period.
-        </div>
+        {activePlan === "free" && (
+          <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: 16 }}>
+            Resets at the start of each billing period. Upgrade for unlimited access.
+          </div>
+        )}
       </div>
 
       {/* ── Plan cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
-        {PLANS.map((plan, i) => (
+        {resolvedPlans.map((plan, i) => (
           <div key={plan.id} style={{
             background: plan.current ? `rgba(46,204,113,0.04)` : "rgba(255,255,255,0.02)",
             border: `1.5px solid ${plan.current ? "rgba(46,204,113,0.3)" : "rgba(255,255,255,0.07)"}`,
@@ -486,7 +574,7 @@ function BillingScreen({ user, session }) {
               </div>
             )}
             {plan.current && (
-              <div style={{ position: "absolute", top: -11, right: 24, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 800, letterSpacing: 1.5, padding: "3px 12px", borderRadius: 20 }}>
+              <div style={{ position: "absolute", top: -11, right: 24, background: "rgba(46,204,113,0.2)", border: "1px solid rgba(46,204,113,0.4)", color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 1.5, padding: "3px 12px", borderRadius: 20 }}>
                 ACTIVE
               </div>
             )}
@@ -517,8 +605,12 @@ function BillingScreen({ user, session }) {
             </div>
 
             <button
-              onClick={() => !plan.current && handleUpgrade(plan.id)}
-              disabled={plan.current}
+              onClick={() => {
+                if (plan.current) return;
+                if (plan.id === "free") return; // downgrade via portal
+                handleUpgrade(plan.id);
+              }}
+              disabled={plan.current || checkoutLoading === plan.id}
               style={{
                 width: "100%",
                 background: plan.current
@@ -534,28 +626,42 @@ function BillingScreen({ user, session }) {
                 fontFamily: "inherit",
                 boxShadow: plan.current ? "none" : "0 4px 16px rgba(46,204,113,0.22)",
                 letterSpacing: 0.2,
+                opacity: checkoutLoading && checkoutLoading !== plan.id ? 0.5 : 1,
+                transition: "opacity 0.2s",
               }}>
-              {plan.current ? "✓ " + plan.cta : plan.cta + " →"}
+              {checkoutLoading === plan.id
+                ? "Redirecting…"
+                : plan.current
+                  ? "✓ " + plan.cta
+                  : plan.cta + " →"}
             </button>
           </div>
         ))}
       </div>
 
-      {/* ── Stripe notice ── */}
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+      {/* ── Secure payment badge ── */}
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "18px 24px", display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
         <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
-          💳
+          🔒
         </div>
         <div>
-          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Stripe Billing — Coming Soon</div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Secure Payments via Stripe</div>
           <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, lineHeight: 1.6 }}>
-            Secure subscription management via Stripe is in active development. Plan upgrades, invoices, and a full billing portal will be available at launch.
+            All payments are processed securely by Stripe. We never store your card details. Cancel anytime from the billing portal.
           </div>
         </div>
+        {hasStripeCustomer && (
+          <button
+            onClick={handleManageBilling}
+            disabled={portalLoading}
+            style={{ marginLeft: "auto", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.3)", color: "#A5B4FC", borderRadius: 9, padding: "9px 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}>
+            {portalLoading ? "Loading…" : "Billing Portal →"}
+          </button>
+        )}
       </div>
 
       {/* ── FAQ ── */}
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 8 }}>
         <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>FREQUENTLY ASKED</div>
         {[
           { q: "Can I cancel anytime?", a: "Yes — no contracts, no hidden fees. Cancel from the billing portal with one click." },
@@ -1065,6 +1171,12 @@ export default function App() {
   const [session, setSession]         = useState(null);
   const [authLoading, setAuthLoading] = useState(true); // true while checking session on mount
 
+  // ── Billing / Plan ────────────────────────────
+  const [userPlan, setUserPlan]               = useState("free");
+  const [planPeriodEnd, setPlanPeriodEnd]     = useState(null);
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
+  const [billingLoading, setBillingLoading]   = useState(false);
+
   // ── Ayrshare ──────────────────────────────────
   const [ayrshareKey, setAyrshareKey] = useState("");
   const [keyInput, setKeyInput]       = useState("");
@@ -1140,6 +1252,41 @@ export default function App() {
   useEffect(() => {
     if (screen === "analytics" && user && session && ayrshareKey) loadAnalytics();
   }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch billing status when user logs in ──
+  useEffect(() => {
+    if (!session) return;
+    const fetchBillingStatus = async () => {
+      try {
+        const resp = await fetch(`${BACKEND_URL}/billing/status`, {
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
+          },
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        setUserPlan(data.plan || "free");
+        setPlanPeriodEnd(data.planPeriodEnd || null);
+        setHasStripeCustomer(!!data.hasCustomer);
+      } catch (e) { /* silent — defaults to free */ }
+    };
+    fetchBillingStatus();
+  }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Handle Stripe redirect back (success / cancel) ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const billingStatus = params.get("billing");
+    if (billingStatus === "success") {
+      // Clean URL and navigate to billing screen
+      window.history.replaceState({}, "", window.location.pathname);
+      setScreen("billing");
+    } else if (billingStatus === "cancel" || billingStatus === "portal-return") {
+      window.history.replaceState({}, "", window.location.pathname);
+      setScreen("billing");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Poll video status for any ads currently processing ──
   useEffect(() => {
@@ -1469,6 +1616,10 @@ export default function App() {
         body: JSON.stringify({ imageUrl, adHeadline: ad.headline, adBody: ad.body, businessDesc }),
       });
       const data = await resp.json();
+      if (resp.status === 403 && data.code === "PLAN_LIMIT") {
+        setAdVisuals(prev => ({ ...prev, [adIdx]: { ...prev[adIdx], videoStatus: "plan_limit" } }));
+        return;
+      }
       if (data.status === "error") throw new Error(data.message);
       setAdVisuals(prev => ({ ...prev, [adIdx]: { ...prev[adIdx], videoStatus: "processing", videoRequestId: data.requestId } }));
     } catch (e) {
@@ -1691,6 +1842,11 @@ export default function App() {
             >
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "#fff", flexShrink: 0 }}>{userInitial}</div>
               <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</span>
+              {userPlan !== "free" && (
+                <span style={{ background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", fontSize: 9, fontWeight: 800, letterSpacing: 1.2, padding: "2px 7px", borderRadius: 20, textTransform: "uppercase", flexShrink: 0 }}>
+                  {userPlan}
+                </span>
+              )}
               <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginLeft: 2 }}>{userMenuOpen ? "▲" : "▾"}</span>
             </button>
 
@@ -1705,6 +1861,11 @@ export default function App() {
                 </button>
                 <button className="user-dropdown-item" onClick={() => { setScreen("billing"); setUserMenuOpen(false); }}>
                   <span style={{ fontSize: 14 }}>◇</span> Plans &amp; Billing
+                  {userPlan !== "free" && (
+                    <span style={{ marginLeft: "auto", background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", fontSize: 9, fontWeight: 800, letterSpacing: 1, padding: "2px 7px", borderRadius: 20, textTransform: "uppercase" }}>
+                      {userPlan}
+                    </span>
+                  )}
                 </button>
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "6px 8px" }} />
                 <button className="user-dropdown-item danger" onClick={handleLogout}>
@@ -1996,6 +2157,7 @@ export default function App() {
                 const imgUrl        = vis.imageUrl;
                 const vidStatus     = vis.videoStatus;
                 const vidUrl        = vis.videoUrl;
+                const vidPlanLimit  = vidStatus === "plan_limit";
                 const vidProcessing = vidStatus === "processing" || vidStatus === "submitting";
 
                 return (
@@ -2056,13 +2218,13 @@ export default function App() {
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: vidUrl ? 14 : 0 }}>
                         <div>
                           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", marginBottom: 2 }}>🎬 Short Video</div>
-                          {!vidUrl && !vidProcessing && (
+                          {!vidUrl && !vidProcessing && !vidPlanLimit && (
                             <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12 }}>
                               {imgUrl ? "Cinematic motion from your image · ~30–60s" : "Generate an image first to unlock"}
                             </div>
                           )}
                         </div>
-                        {!vidProcessing && !vidUrl && (
+                        {!vidProcessing && !vidUrl && !vidPlanLimit && (
                           <button
                             onClick={() => generateVideo(i)}
                             disabled={!imgUrl}
@@ -2092,6 +2254,20 @@ export default function App() {
                           <span style={{ color: "#FCA5A5", fontSize: 12 }}>Failed — try again</span>
                         )}
                       </div>
+                      {vidPlanLimit && (
+                        <div style={{ borderRadius: 10, padding: "18px 20px", background: "rgba(77,255,143,0.04)", border: "1.5px solid rgba(77,255,143,0.2)", display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
+                          <div style={{ fontSize: 26, flexShrink: 0 }}>🔒</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ color: "#4DFF8F", fontWeight: 700, fontSize: 13, marginBottom: 3 }}>Pro Feature</div>
+                            <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 12.5, lineHeight: 1.55 }}>AI video generation is available on Pro and Agency plans.</div>
+                          </div>
+                          <button
+                            onClick={() => setScreen("billing")}
+                            style={{ background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap" }}>
+                            Upgrade →
+                          </button>
+                        </div>
+                      )}
                       {vidProcessing && (
                         <div style={{ borderRadius: 10, aspectRatio: "16/9", background: "rgba(99,179,237,0.04)", border: "1.5px dashed rgba(99,179,237,0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
                           <div style={{ fontSize: 32, animation: "glowPulse 1.6s ease-in-out infinite" }}>🎬</div>
@@ -2465,7 +2641,7 @@ export default function App() {
 
         {/* ══════════ BILLING ══════════ */}
         {screen === "billing" && (
-          <BillingScreen user={user} session={session} />
+          <BillingScreen user={user} session={session} userPlan={userPlan} planPeriodEnd={planPeriodEnd} hasStripeCustomer={hasStripeCustomer} />
         )}
 
       </div>
