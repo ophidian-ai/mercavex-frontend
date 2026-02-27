@@ -1605,25 +1605,17 @@ export default function App() {
             { id: "campaign",  label: "New Campaign", icon: "✦" },
             { id: "dashboard", label: "Campaigns",    icon: "◉" },
             { id: "analytics", label: "Analytics",    icon: "◈" },
-            { id: "account",   label: "Account",      icon: "⊙" },
-            { id: "billing",   label: "Billing",      icon: "◇" },
           ].map(tab => {
             const isActive = tab.id === "analytics"
               ? screen === "analytics"
               : tab.id === "dashboard"
               ? screen === "dashboard"
-              : tab.id === "account"
-              ? screen === "account"
-              : tab.id === "billing"
-              ? screen === "billing"
               : screen !== "dashboard" && screen !== "analytics" && screen !== "account" && screen !== "billing";
             return (
               <button key={tab.id}
                 onClick={() => {
                   if (tab.id === "dashboard")      setScreen("dashboard");
                   else if (tab.id === "analytics") setScreen("analytics");
-                  else if (tab.id === "account")   setScreen("account");
-                  else if (tab.id === "billing")   setScreen("billing");
                   else                             setScreen(ayrshareKey ? "input" : "connect");
                 }}
                 style={{
