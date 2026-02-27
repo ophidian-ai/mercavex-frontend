@@ -1780,8 +1780,38 @@ export default function App() {
   };
 
   // ── Load saved Ayrshare key from backend ──────
+  // Fast path: if we have a cached key + profiles from a previous session,
+  // restore them instantly (no loading splash) then re-verify in the background.
   const loadSavedProfile = async (sess) => {
     if (!sess?.access_token) return;
+
+    const cacheKey = `mercavex_profile_${sess.user.id}`;
+    const cached   = (() => { try { return JSON.parse(localStorage.getItem(cacheKey) || "null"); } catch { return null; } })();
+
+    if (cached?.ayrshareKey && cached?.profiles?.length > 0) {
+      // Instant restore — skip the loading splash entirely for returning users
+      setKeyInput(cached.ayrshareKey);
+      setAyrshareKey(cached.ayrshareKey);
+      setProfiles(cached.profiles);
+      setSelectedPlatforms(cached.profiles.map(p => p.platform));
+      if (cached.businessDesc) setBusinessDesc(cached.businessDesc);
+      setSavedKeyLoading(false);
+      // Background re-verify (silent — only updates if something changed)
+      fetch(`${BACKEND_URL}/user/profile`, { headers: { "Authorization": `Bearer ${sess.access_token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return;
+          if (data.ayrshare_api_key && data.ayrshare_api_key !== cached.ayrshareKey) {
+            // Key changed — do a full re-connect
+            loadProfilesWithKey(data.ayrshare_api_key, sess.user.id);
+          }
+          if (data.business_desc) setBusinessDesc(data.business_desc);
+        })
+        .catch(() => {});
+      return;
+    }
+
+    // No cache — normal blocking load (first login or after cache cleared)
     setSavedKeyLoading(true);
     try {
       const resp = await fetch(`${BACKEND_URL}/user/profile`, {
@@ -1791,8 +1821,7 @@ export default function App() {
         const data = await resp.json();
         if (data.ayrshare_api_key) {
           setKeyInput(data.ayrshare_api_key);
-          // Auto-connect if key found
-          await loadProfilesWithKey(data.ayrshare_api_key);
+          await loadProfilesWithKey(data.ayrshare_api_key, sess.user.id);
         }
         if (data.business_desc) setBusinessDesc(data.business_desc);
       }
@@ -1823,6 +1852,8 @@ export default function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.history.replaceState({}, "", window.location.pathname);
+    // Clear cached profile so next user starts fresh
+    try { Object.keys(localStorage).filter(k => k.startsWith("mercavex_profile_")).forEach(k => localStorage.removeItem(k)); } catch {}
     setUser(null); setSession(null);
     setScreen("connect"); setAyrshareKey(""); setKeyInput("");
     setProfiles([]); setSelectedPlatforms([]);
@@ -1831,7 +1862,7 @@ export default function App() {
   };
 
   // ── Ayrshare: Load Profiles ───────────────────
-  const loadProfilesWithKey = async (key) => {
+  const loadProfilesWithKey = async (key, userId = null) => {
     setProfilesLoading(true); setError("");
     try {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -1846,6 +1877,13 @@ export default function App() {
       setAyrshareKey(key);
       setProfiles(connected);
       setSelectedPlatforms(connected.map(p => p.platform));
+      // Cache for instant restore on next reload
+      const uid = userId || currentSession?.user?.id;
+      if (uid) {
+        try {
+          localStorage.setItem(`mercavex_profile_${uid}`, JSON.stringify({ ayrshareKey: key, profiles: connected }));
+        } catch {}
+      }
       // Only navigate to "input" if the user has no saved screen (fresh load / first connect).
       const HASH_SCREENS_LOCAL = new Set(["input","connect","dashboard","analytics","account","billing","visuals"]);
       const currentHash = window.location.hash.replace("#", "");
