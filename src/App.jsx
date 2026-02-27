@@ -640,20 +640,7 @@ function AuthScreen({ onAuth }) {
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
         html, body, #root { margin: 0; padding: 0; width: 100%; min-height: 100vh; }
-        body { background-color: #0A1628; }
-        body::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          width: 100vw;
-          height: 100vh;
-          background-image: url(${BG});
-          background-size: cover;
-          background-position: center right;
-          background-repeat: no-repeat;
-          z-index: -1;
-          pointer-events: none;
-        }
+        body { background-color: #0D2B1E; }
         @keyframes up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
         @keyframes glowPulse { 0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))} 50%{filter:drop-shadow(0 0 14px rgba(46,204,113,0.7))} }
         @keyframes serpentine { 0%,100%{transform:translateY(0) rotate(0deg)} 30%{transform:translateY(-3px) rotate(0.8deg)} 70%{transform:translateY(3px) rotate(-0.8deg)} }
@@ -1448,6 +1435,7 @@ export default function App() {
   const approvedCount = approvedAds.filter(Boolean).length;
   const userName      = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
   const userInitial   = userName[0]?.toUpperCase() || "U";
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // ── Styles ────────────────────────────────────
   const S = {
@@ -1470,7 +1458,7 @@ export default function App() {
     return (
       <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans',sans-serif" }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700;800&display=swap" />
-        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}body{background-color:#0A1628;}body::before{content:'';position:fixed;inset:0;width:100vw;height:100vh;background-image:url(${BG});background-size:cover;background-position:center right;background-repeat:no-repeat;z-index:-1;pointer-events:none;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
+        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}body{background-color:#0D2B1E;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
         <div style={{ textAlign: "center" }}>
           <div style={{ animation: "glowPulse 1.6s ease-in-out infinite", fontSize: 40 }}>⚙️</div>
           <div style={{ color: "rgba(255,255,255,0.25)", marginTop: 14, fontSize: 13 }}>Loading Mercavex…</div>
@@ -1487,7 +1475,7 @@ export default function App() {
     return (
       <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans',sans-serif" }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700;800&display=swap" />
-        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}body{background-color:#0A1628;}body::before{content:'';position:fixed;inset:0;width:100vw;height:100vh;background-image:url(${BG});background-size:cover;background-position:center right;background-repeat:no-repeat;z-index:-1;pointer-events:none;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
+        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}body{background-color:#0D2B1E;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
         <div style={{ textAlign: "center" }}>
           <div style={{ animation: "glowPulse 1.6s ease-in-out infinite", fontSize: 36 }}>🔗</div>
           <div style={{ color: "rgba(255,255,255,0.3)", marginTop: 14, fontSize: 13 }}>Restoring your connections…</div>
@@ -1503,20 +1491,7 @@ export default function App() {
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
         html, body, #root { margin: 0; padding: 0; width: 100%; min-height: 100vh; }
-        body { background-color: #0A1628; }
-        body::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          width: 100vw;
-          height: 100vh;
-          background-image: url(${BG});
-          background-size: cover;
-          background-position: center right;
-          background-repeat: no-repeat;
-          z-index: -1;
-          pointer-events: none;
-        }
+        body { background-color: #0D2B1E; }
         @keyframes dot        { 0%,100%{opacity:.2;transform:scale(.7)} 50%{opacity:1;transform:scale(1)} }
         @keyframes up         { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin       { to{transform:rotate(360deg)} }
@@ -1528,81 +1503,107 @@ export default function App() {
         button:hover { opacity: 0.88; }
         button:active { opacity: 0.75; }
         button:disabled { opacity: 0.45; cursor: not-allowed; }
+        .sidebar-nav-btn { background: none; border: none; width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 20px; border-radius: 10px; color: rgba(255,255,255,0.38); font-size: 13px; font-weight: 700; font-family: 'DM Sans','Segoe UI',sans-serif; cursor: pointer; transition: all 0.18s; text-align: left; letter-spacing: 0.2px; }
+        .sidebar-nav-btn:hover { background: rgba(46,204,113,0.07); color: rgba(255,255,255,0.75); opacity: 1; }
+        .sidebar-nav-btn.active { background: rgba(46,204,113,0.1); color: #2ECC71; }
+        .user-dropdown-item { background: none; border: none; width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 8px; color: rgba(255,255,255,0.65); font-size: 13px; font-weight: 600; font-family: 'DM Sans','Segoe UI',sans-serif; cursor: pointer; transition: all 0.15s; text-align: left; }
+        .user-dropdown-item:hover { background: rgba(46,204,113,0.08); color: #fff; opacity: 1; }
+        .user-dropdown-item.danger { color: rgba(255,100,100,0.75); }
+        .user-dropdown-item.danger:hover { background: rgba(255,59,48,0.08); color: #FF6B6B; }
       `}</style>
 
-      {/* ══ HEADER ══ */}
-      <header style={{ ...S.hdr, flexDirection: "column", alignItems: "stretch", padding: "14px 28px 0", gap: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
-              <img src={LOGO} alt="OphidianAI" style={{ width: "200%", height: "100%", objectFit: "cover", objectPosition: "right center", marginLeft: "-100%" }} />
-            </div>
-            <div>
-              <div style={{ ...S.logo, lineHeight: 1 }}>Mercavex</div>
-              <div style={{ color: "#2ECC71", fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", marginTop: 2 }}>by OphidianAI</div>
-            </div>
+      {/* ══ SIDEBAR ══ */}
+      <nav style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 220, background: "rgba(8,18,32,0.97)", borderRight: "1px solid rgba(46,204,113,0.08)", zIndex: 200, display: "flex", flexDirection: "column", padding: "0 12px 24px" }}>
+        {/* Logo lockup */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 8px 28px" }}>
+          <div style={{ width: 36, height: 36, borderRadius: 7, overflow: "hidden", flexShrink: 0 }}>
+            <img src={LOGO} alt="OphidianAI" style={{ width: "200%", height: "100%", objectFit: "cover", objectPosition: "right center", marginLeft: "-100%" }} />
           </div>
-
-          {/* User pill */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(46,204,113,0.12)", borderRadius: 40, padding: "6px 14px 6px 8px" }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "#fff", flexShrink: 0 }}>{userInitial}</div>
-              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</span>
-            </div>
-            <button onClick={handleLogout} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "7px 14px", color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>
-              Sign Out
-            </button>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: -0.6, fontFamily: "'DM Sans',sans-serif", lineHeight: 1 }}>Mercavex</div>
+            <div style={{ color: "#2ECC71", fontSize: 8, fontWeight: 700, letterSpacing: 2.2, textTransform: "uppercase", marginTop: 2 }}>by OphidianAI</div>
           </div>
         </div>
 
-        {/* ── Nav tabs ── */}
-        <div style={{ display: "flex", marginLeft: -28, marginRight: -28, paddingLeft: 20, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          {[
-            { id: "campaign",  label: "New Campaign", icon: "✦" },
-            { id: "dashboard", label: "Campaigns",    icon: "◉" },
-            { id: "analytics", label: "Analytics",    icon: "◈" },
-            { id: "account",   label: "Account",      icon: "⊙" },
-            { id: "billing",   label: "Billing",      icon: "◇" },
-          ].map(tab => {
-            const isActive = tab.id === "analytics"
-              ? screen === "analytics"
-              : tab.id === "dashboard"
-              ? screen === "dashboard"
-              : tab.id === "account"
-              ? screen === "account"
-              : tab.id === "billing"
-              ? screen === "billing"
-              : screen !== "dashboard" && screen !== "analytics" && screen !== "account" && screen !== "billing";
-            return (
-              <button key={tab.id}
-                onClick={() => {
-                  if (tab.id === "dashboard")      setScreen("dashboard");
-                  else if (tab.id === "analytics") setScreen("analytics");
-                  else if (tab.id === "account")   setScreen("account");
-                  else if (tab.id === "billing")   setScreen("billing");
-                  else                             setScreen(ayrshareKey ? "input" : "connect");
-                }}
-                style={{
-                  background: "none", border: "none",
-                  borderBottom: `2px solid ${isActive ? "#2ECC71" : "transparent"}`,
-                  color: isActive ? "#2ECC71" : "rgba(255,255,255,0.3)",
-                  padding: "11px 18px",
-                  fontSize: 12.5, fontWeight: 700, letterSpacing: 0.3,
-                  cursor: "pointer", fontFamily: "inherit",
-                  transition: "all 0.2s", marginBottom: -1,
-                  display: "flex", alignItems: "center", gap: 7,
-                }}
-              >
-                <span style={{ fontSize: 10 }}>{tab.icon}</span>
-                {tab.label}
-                {tab.id === "dashboard" && campaigns.length > 0 && (
-                  <span style={{ background: isActive ? "rgba(46,204,113,0.2)" : "rgba(255,255,255,0.07)", border: `1px solid ${isActive ? "rgba(46,204,113,0.35)" : "rgba(255,255,255,0.1)"}`, borderRadius: 20, padding: "1px 7px", fontSize: 10, fontWeight: 800, color: isActive ? "#2ECC71" : "rgba(255,255,255,0.3)" }}>
-                    {campaigns.length}
-                  </span>
-                )}
+        {/* Nav section label */}
+        <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9.5, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", padding: "0 8px", marginBottom: 6 }}>Navigation</div>
+
+        {/* Nav links */}
+        {[
+          { id: "campaign",  label: "New Campaign", icon: "✦" },
+          { id: "dashboard", label: "Campaigns",    icon: "◉" },
+          { id: "analytics", label: "Analytics",    icon: "◈" },
+        ].map(item => {
+          const isActive = item.id === "analytics"
+            ? screen === "analytics"
+            : item.id === "dashboard"
+            ? screen === "dashboard"
+            : screen !== "dashboard" && screen !== "analytics" && screen !== "account" && screen !== "billing";
+          return (
+            <button
+              key={item.id}
+              className={`sidebar-nav-btn${isActive ? " active" : ""}`}
+              onClick={() => {
+                if (item.id === "dashboard")      setScreen("dashboard");
+                else if (item.id === "analytics") setScreen("analytics");
+                else                              setScreen(ayrshareKey ? "input" : "connect");
+              }}
+            >
+              <span style={{ fontSize: 11, flexShrink: 0 }}>{item.icon}</span>
+              {item.label}
+              {item.id === "dashboard" && campaigns.length > 0 && (
+                <span style={{ marginLeft: "auto", background: isActive ? "rgba(46,204,113,0.2)" : "rgba(255,255,255,0.07)", border: `1px solid ${isActive ? "rgba(46,204,113,0.35)" : "rgba(255,255,255,0.1)"}`, borderRadius: 20, padding: "1px 7px", fontSize: 10, fontWeight: 800 }}>
+                  {campaigns.length}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Version badge */}
+        <div style={{ padding: "0 8px" }}>
+          <div style={{ color: "rgba(255,255,255,0.12)", fontSize: 10, fontWeight: 600 }}>Mercavex v1.7</div>
+        </div>
+      </nav>
+
+      {/* ══ MAIN CONTENT (offset by sidebar) ══ */}
+      <div style={{ marginLeft: 220, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+
+      {/* ══ TOP BAR ══ */}
+      <header style={{ ...S.hdr, padding: "12px 28px", justifyContent: "flex-end" }}>
+        {/* User pill with dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setUserMenuOpen(o => !o)}
+            style={{ display: "flex", alignItems: "center", gap: 9, background: "rgba(255,255,255,0.04)", border: `1px solid ${userMenuOpen ? "rgba(46,204,113,0.3)" : "rgba(46,204,113,0.12)"}`, borderRadius: 40, padding: "6px 14px 6px 8px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}
+          >
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "#fff", flexShrink: 0 }}>{userInitial}</div>
+            <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</span>
+            <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginLeft: 2 }}>{userMenuOpen ? "▲" : "▾"}</span>
+          </button>
+
+          {/* Dropdown menu */}
+          {userMenuOpen && (
+            <div
+              style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: "#0A1628", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 12, padding: "6px", minWidth: 180, zIndex: 300, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}
+              onMouseLeave={() => setUserMenuOpen(false)}
+            >
+              <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 9.5, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", padding: "4px 14px 6px" }}>Account</div>
+              <button className="user-dropdown-item" onClick={() => { setScreen("account"); setUserMenuOpen(false); }}>
+                <span style={{ fontSize: 14 }}>⊙</span> Account Settings
               </button>
-            );
-          })}
+              <button className="user-dropdown-item" onClick={() => { setScreen("billing"); setUserMenuOpen(false); }}>
+                <span style={{ fontSize: 14 }}>◇</span> Plans &amp; Billing
+              </button>
+              <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "6px 8px" }} />
+              <button className="user-dropdown-item danger" onClick={handleLogout}>
+                <span style={{ fontSize: 14 }}>→</span> Sign Out
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -2317,6 +2318,7 @@ export default function App() {
         )}
 
       </div>
+      </div>{/* end marginLeft wrapper */}
     </div>
   );
 }
