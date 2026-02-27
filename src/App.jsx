@@ -156,10 +156,10 @@ function AuthScreen({ onAuth }) {
   const [success, setSuccess]   = useState("");
 
   const S = {
-    page:  { minHeight: "100vh", width: "100%", backgroundColor: "#0A1628", backgroundImage: `url(${LOGO})`, backgroundSize: "cover", backgroundPosition: "center right", backgroundRepeat: "no-repeat", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "30px 20px" },
-    card:  { width: "100%", maxWidth: 440, background: "rgba(10,22,40,0.82)", backdropFilter: "blur(18px)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 20, animation: "up 0.5s ease both" },
-    inp:   { width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "13px 15px", color: "#fff", fontSize: 14.5, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 14, transition: "border 0.2s" },
-    btn:   { width: "100%", background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "14px 0", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit", letterSpacing: -0.2, boxShadow: "0 4px 20px rgba(46,204,113,0.28)", marginTop: 6, minHeight: 48, touch_action: "manipulation" },
+    page:  { minHeight: "100vh", width: "100%", backgroundImage: `url(${LOGO})`, backgroundSize: "cover", backgroundPosition: "center right", backgroundRepeat: "no-repeat", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "30px 20px" },
+    card:  { width: "100%", maxWidth: 440, background: "rgba(10,22,40,0.82)", backdropFilter: "blur(18px)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 20, padding: "44px 40px", animation: "up 0.5s ease both" },
+    inp:   { width: "100%", background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "13px 15px", color: "#fff", fontSize: 14.5, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 14, transition: "border 0.2s" },
+    btn:   { width: "100%", background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "14px 0", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit", letterSpacing: -0.2, boxShadow: "0 4px 20px rgba(46,204,113,0.28)", marginTop: 6 },
     lbl:   { display: "block", color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.8, marginBottom: 8, textTransform: "uppercase" },
     link:  { color: "#2ECC71", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 13, fontWeight: 600, padding: 0 },
   };
@@ -207,7 +207,6 @@ function AuthScreen({ onAuth }) {
 
   return (
     <div style={S.page}>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;0,9..40,800&display=swap" />
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
@@ -215,14 +214,8 @@ function AuthScreen({ onAuth }) {
         @keyframes up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
         @keyframes glowPulse { 0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))} 50%{filter:drop-shadow(0 0 14px rgba(46,204,113,0.7))} }
         @keyframes serpentine { 0%,100%{transform:translateY(0) rotate(0deg)} 30%{transform:translateY(-3px) rotate(0.8deg)} 70%{transform:translateY(3px) rotate(-0.8deg)} }
-        @keyframes dot { 0%,100%{opacity:.2;transform:scale(.7)} 50%{opacity:1;transform:scale(1)} }
-        input::placeholder { color: rgba(255,255,255,0.22) !important; }
+        input::placeholder { color: rgba(255,255,255,0.48) !important; }
         input:focus { border-color: rgba(46,204,113,0.5) !important; }
-        button { touch-action: manipulation; }
-        .auth-card { padding: 44px 40px; }
-        @media (max-width: 640px) {
-          .auth-card { padding: 28px 20px; }
-        }
       `}</style>
 
       {/* Logo */}
@@ -238,7 +231,7 @@ function AuthScreen({ onAuth }) {
         </div>
       </div>
 
-      <div style={S.card} className="auth-card">
+      <div style={S.card}>
         <div style={{ fontSize: "clamp(24px,4vw,32px)", fontWeight: 800, letterSpacing: -1.2, marginBottom: 6, fontFamily: "'DM Sans',sans-serif" }}>{titles[mode].h}</div>
         <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, marginBottom: 30, lineHeight: 1.6 }}>{titles[mode].sub}</div>
 
@@ -712,13 +705,33 @@ export default function App() {
   };
 
   // ── Images ────────────────────────────────────
+  // Compresses images to max 1024px / quality 0.82 before encoding.
+  // iPad camera photos can be 10–15MB each — without this the base64
+  // payload sent to the Anthropic API is too large and times out
+  // mid-response, causing "JSON Parse error: Unexpected EOF" on iOS.
+  const compressImage = (file) => new Promise(res => {
+    const MAX_PX = 1024;
+    const QUALITY = 0.82;
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > MAX_PX || height > MAX_PX) {
+        if (width > height) { height = Math.round(height * MAX_PX / width); width = MAX_PX; }
+        else                { width  = Math.round(width  * MAX_PX / height); height = MAX_PX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      res({ name: file.name, data: canvas.toDataURL("image/jpeg", QUALITY) });
+    };
+    img.src = url;
+  });
+
   const handleImages = (files) => {
-    const readers = Array.from(files).map(f => new Promise(res => {
-      const r = new FileReader();
-      r.onload = () => res({ name: f.name, data: r.result });
-      r.readAsDataURL(f);
-    }));
-    Promise.all(readers).then(imgs => setUploadedImages(prev => [...prev, ...imgs].slice(0, 4)));
+    Promise.all(Array.from(files).map(compressImage))
+      .then(imgs => setUploadedImages(prev => [...prev, ...imgs].slice(0, 4)));
   };
 
   // ── AI: Generate Ads ──────────────────────────
@@ -782,18 +795,28 @@ export default function App() {
       const visual       = adVisuals[adIdx] || {};
       const text         = `${ad.headline}\n\n${ad.body}\n\n${ad.cta}`;
       const scheduleDate = dates[j] || null;
-      // Video takes priority over image; both are optional
+      // Video takes priority over AI image; both are optional
       const mediaUrls    = visual.videoUrl
         ? [visual.videoUrl]
         : visual.imageUrl
         ? [visual.imageUrl]
         : undefined;
 
+      // Fall back to user-uploaded images when no AI visual was generated
+      const fallbackImages = !mediaUrls && uploadedImages.length > 0
+        ? uploadedImages.map(img => ({
+            data:      img.data.split(",")[1],
+            mediaType: img.data.split(";")[0].replace("data:", ""),
+          }))
+        : [];
+
+      const hasMedia = !!mediaUrls || fallbackImages.length > 0;
+
       // Strip platforms that require media when none is available
-      const postPlatforms = mediaUrls
+      const postPlatforms = hasMedia
         ? selectedPlatforms
         : selectedPlatforms.filter(p => !MEDIA_REQUIRED_PLATFORMS.includes(p));
-      const skippedPlatforms = mediaUrls
+      const skippedPlatforms = hasMedia
         ? []
         : selectedPlatforms.filter(p => MEDIA_REQUIRED_PLATFORMS.includes(p));
 
@@ -812,7 +835,11 @@ export default function App() {
       try {
         const resp = await fetch(`${BACKEND_URL}/social/post`, {
           method: "POST", headers: authHeaders(),
-          body: JSON.stringify({ key: ayrshareKey, text, platforms: postPlatforms, scheduleDate, ...(mediaUrls ? { mediaUrls } : {}) }),
+          body: JSON.stringify({
+            key: ayrshareKey, text, platforms: postPlatforms, scheduleDate,
+            ...(mediaUrls         ? { mediaUrls }         : {}),
+            ...(fallbackImages.length > 0 ? { images: fallbackImages } : {}),
+          }),
         });
         const result = await resp.json();
         const skippedNote = skippedPlatforms.length
@@ -840,7 +867,7 @@ export default function App() {
         log.push({
           adTitle: ad.headline, platforms: postPlatforms, scheduleDate,
           ayrshareId: result.id || null,
-          hasImage: !!mediaUrls,
+          hasImage: hasMedia,
           status: derivedStatus,
           message: derivedMessage,
         });
@@ -974,16 +1001,6 @@ export default function App() {
     setScreen("input");
   };
 
-  // ── Viewport meta (mobile) ────────────────────
-  useEffect(() => {
-    if (!document.querySelector('meta[name="viewport"]')) {
-      const m = document.createElement("meta");
-      m.name = "viewport";
-      m.content = "width=device-width, initial-scale=1.0";
-      document.head.appendChild(m);
-    }
-  }, []);
-
   // ── Derived ───────────────────────────────────
   const approvedCount = approvedAds.filter(Boolean).length;
   const userName      = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
@@ -998,7 +1015,7 @@ export default function App() {
     h1:    { fontSize: "clamp(30px,5vw,50px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: -2, marginBottom: 10, fontFamily: "'DM Sans',sans-serif" },
     sub:   { color: "rgba(255,255,255,0.4)", fontSize: 15, lineHeight: 1.7, marginBottom: 34 },
     lbl:   { display: "block", color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.8, marginBottom: 8, textTransform: "uppercase" },
-    inp:   { width: "100%", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 10, padding: "12px 15px", color: "#fff", fontSize: 14.5, fontFamily: "inherit", outline: "none", boxSizing: "border-box", resize: "vertical", transition: "border 0.2s" },
+    inp:   { width: "100%", background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 10, padding: "12px 15px", color: "#fff", fontSize: 14.5, fontFamily: "inherit", outline: "none", boxSizing: "border-box", resize: "vertical", transition: "border 0.2s" },
     btn:   { background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "14px 30px", fontWeight: 700, fontSize: 14.5, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 9, letterSpacing: -0.2, transition: "opacity 0.15s", boxShadow: "0 4px 20px rgba(46,204,113,0.25)" },
     ghost: { background: "transparent", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, padding: "13px 26px", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit", transition: "opacity 0.15s" },
     card:  { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 14, padding: "24px 26px" },
@@ -1049,50 +1066,16 @@ export default function App() {
         @keyframes serpentine { 0%,100%{transform:translateY(0) rotate(0deg)} 30%{transform:translateY(-3px) rotate(0.8deg)} 70%{transform:translateY(3px) rotate(-0.8deg)} }
         @keyframes glowPulse  { 0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))} 50%{filter:drop-shadow(0 0 14px rgba(46,204,113,0.7))} }
         .anim { animation: up 0.45s ease both; }
-        input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.22) !important; }
+        input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.48) !important; }
         input:focus, textarea:focus { border-color: rgba(46,204,113,0.45) !important; }
-        button { touch-action: manipulation; }
         button:hover { opacity: 0.88; }
         button:active { opacity: 0.75; }
         button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-        /* ── Responsive layout classes ── */
-        .hdr-inner   { display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; }
-        .hdr-user    { display:flex; align-items:center; gap:12px; }
-        .hdr-uname   { color:rgba(255,255,255,0.6); font-size:13px; font-weight:600; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .nav-bar     { display:flex; margin-left:-28px; margin-right:-28px; padding-left:20px; border-top:1px solid rgba(255,255,255,0.05); }
-        .nav-tab     { background:none; border:none; padding:11px 18px; font-size:12.5px; font-weight:700; letter-spacing:0.3px; cursor:pointer; font-family:inherit; transition:all 0.2s; margin-bottom:-1px; display:flex; align-items:center; gap:7px; }
-        .main-wrap   { max-width:680px; margin:0 auto; padding:50px 22px 80px; }
-        .key-row     { display:flex; gap:9px; padding-left:36px; }
-        .key-row .key-btn { padding:12px 20px; flex-shrink:0; }
-        .approve-bar { background:rgba(46,204,113,0.07); border:1px solid rgba(46,204,113,0.22); border-radius:13px; padding:17px 22px; display:flex; align-items:center; justify-content:space-between; gap:14px; }
-        .camp-footer { display:flex; align-items:center; justify-content:space-between; padding-top:14px; border-top:1px solid rgba(255,255,255,0.05); gap:10px; flex-wrap:wrap; }
-        .camp-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-        .sched-grid  { display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-bottom:24px; }
-
-        @media (max-width: 640px) {
-          .hdr-inner  { padding-bottom:10px; }
-          .hdr-uname  { display:none; }
-          .nav-bar    { padding-left:0; margin-left:0; margin-right:0; }
-          .nav-tab    { flex:1; justify-content:center; padding:10px 6px; font-size:11px; gap:4px; }
-          .main-wrap  { padding:28px 14px 90px; }
-          .key-row    { flex-direction:column; padding-left:0; }
-          .key-row .key-btn { width:100%; justify-content:center; }
-          .approve-bar { flex-direction:column; align-items:stretch; }
-          .approve-bar button { width:100%; justify-content:center; }
-          .camp-footer { flex-direction:column; align-items:stretch; }
-          .camp-actions { justify-content:flex-end; }
-        }
-
-        @media (max-width: 400px) {
-          .sched-grid { grid-template-columns:1fr; }
-          .nav-tab span[style] { display:none; }
-        }
       `}</style>
 
       {/* ══ HEADER ══ */}
       <header style={{ ...S.hdr, flexDirection: "column", alignItems: "stretch", padding: "14px 28px 0", gap: 0 }}>
-        <div className="hdr-inner">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
               <img src={LOGO} alt="OphidianAI" style={{ width: "200%", height: "100%", objectFit: "cover", objectPosition: "right center", marginLeft: "-100%" }} />
@@ -1104,10 +1087,10 @@ export default function App() {
           </div>
 
           {/* User pill */}
-          <div className="hdr-user">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(46,204,113,0.12)", borderRadius: 40, padding: "6px 14px 6px 8px" }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "#fff", flexShrink: 0 }}>{userInitial}</div>
-              <span className="hdr-uname">{userName}</span>
+              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</span>
             </div>
             <button onClick={handleLogout} style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "7px 14px", color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s" }}>
               Sign Out
@@ -1116,7 +1099,7 @@ export default function App() {
         </div>
 
         {/* ── Nav tabs ── */}
-        <div className="nav-bar">
+        <div style={{ display: "flex", marginLeft: -28, marginRight: -28, paddingLeft: 20, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
           {[
             { id: "campaign",  label: "New Campaign", icon: "✦" },
             { id: "dashboard", label: "Campaigns",    icon: "◉" },
@@ -1134,10 +1117,15 @@ export default function App() {
                   else if (tab.id === "analytics") setScreen("analytics");
                   else                             setScreen(ayrshareKey ? "input" : "connect");
                 }}
-                className="nav-tab"
                 style={{
+                  background: "none", border: "none",
                   borderBottom: `2px solid ${isActive ? "#2ECC71" : "transparent"}`,
                   color: isActive ? "#2ECC71" : "rgba(255,255,255,0.3)",
+                  padding: "11px 18px",
+                  fontSize: 12.5, fontWeight: 700, letterSpacing: 0.3,
+                  cursor: "pointer", fontFamily: "inherit",
+                  transition: "all 0.2s", marginBottom: -1,
+                  display: "flex", alignItems: "center", gap: 7,
                 }}
               >
                 <span style={{ fontSize: 10 }}>{tab.icon}</span>
@@ -1153,7 +1141,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="main-wrap">
+      <div style={S.wrap}>
 
         {/* ══════════ CONNECT ══════════ */}
         {screen === "connect" && (
@@ -1189,7 +1177,7 @@ export default function App() {
               <div style={{ color: "rgba(255,255,255,0.42)", fontSize: 13.5, lineHeight: 1.65, marginBottom: 16, paddingLeft: 36 }}>
                 In the Ayrshare dashboard go to <strong style={{ color: "rgba(255,255,255,0.7)" }}>Settings → API Key</strong> and paste it below.
               </div>
-              <div className="key-row">
+              <div style={{ display: "flex", gap: 9, paddingLeft: 36 }}>
                 <input
                   value={keyInput}
                   onChange={e => setKeyInput(e.target.value)}
@@ -1201,8 +1189,7 @@ export default function App() {
                 <button
                   onClick={() => loadProfiles(keyInput)}
                   disabled={!keyInput || profilesLoading}
-                  className="key-btn"
-                  style={{ ...S.btn }}
+                  style={{ ...S.btn, padding: "12px 20px", flexShrink: 0 }}
                 >
                   {profilesLoading ? <Dots /> : "Connect →"}
                 </button>
@@ -1341,7 +1328,7 @@ export default function App() {
             </div>
 
             {approvedCount > 0 && (
-              <div className="approve-bar">
+              <div style={{ background: "rgba(46,204,113,0.07)", border: "1px solid rgba(46,204,113,0.22)", borderRadius: 13, padding: "17px 22px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ color: "#fff", fontWeight: 700 }}>{approvedCount} ad{approvedCount > 1 ? "s" : ""} approved</div>
                   <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13 }}>Ready to schedule</div>
@@ -1349,6 +1336,13 @@ export default function App() {
                 <button style={S.btn} onClick={() => setScreen("visuals")}>Create Visuals →</button>
               </div>
             )}
+
+            <button
+              style={{ ...S.ghost, textAlign: "center", fontSize: 13, marginTop: 18 }}
+              onClick={() => setScreen("input")}
+            >
+              ← Back to Campaign Setup
+            </button>
           </div>
         )}
 
@@ -1542,7 +1536,7 @@ export default function App() {
             })()}
 
             {/* Cadence options — 2×2 grid */}
-            <div className="sched-grid">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11, marginBottom: 24 }}>
               {SCHEDULES.slice(1).map(sc => {
                 const sel = schedule === sc.id;
                 return (
@@ -1593,6 +1587,12 @@ export default function App() {
 
             <button style={S.btn} onClick={publishCampaign} disabled={!schedule}>
               🚀 Activate Campaign via Ayrshare
+            </button>
+            <button
+              style={{ ...S.ghost, textAlign: "center", fontSize: 13, marginTop: 12 }}
+              onClick={() => setScreen("visuals")}
+            >
+              ← Back to Visuals
             </button>
           </div>
         )}
@@ -1789,7 +1789,7 @@ export default function App() {
                       )}
 
                       {/* ── Footer: stats + actions ── */}
-                      <div className="camp-footer">
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)", gap: 10, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
                           <span style={{ color: "#86EFAC", fontSize: 12, fontWeight: 700 }}>✓ {scheduledCount} queued</span>
                           {partialCount > 0 && (
@@ -1800,7 +1800,7 @@ export default function App() {
                           )}
                         </div>
 
-                        <div className="camp-actions">
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                           {!isPending ? (
                             <>
                               <button
