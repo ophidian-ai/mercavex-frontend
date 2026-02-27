@@ -941,6 +941,122 @@ function AuthScreen({ onAuth }) {
 }
 
 // ─────────────────────────────────────────────
+//  HELPER CHATBOT — floating AI assistant
+// ─────────────────────────────────────────────
+function HelperChat({ session }) {
+  const [open, setOpen]         = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput]       = useState("");
+  const [busy, setBusy]         = useState(false);
+  const scrollRef               = useRef(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages, open]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    const newMsgs = [...messages, { role: "user", content: text }];
+    setMessages(newMsgs);
+    setInput("");
+    setBusy(true);
+    try {
+      const token = session?.access_token;
+      const resp = await fetch(`${BACKEND_URL}/ai/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ messages: newMsgs }),
+      });
+      const data = await resp.json();
+      setMessages(prev => [...prev, { role: "assistant", content: data.reply || "Sorry, something went wrong." }]);
+    } catch {
+      setMessages(prev => [...prev, { role: "assistant", content: "Connection error — please try again." }]);
+    }
+    setBusy(false);
+  };
+
+  const CS = {
+    fab: { position: "fixed", bottom: 24, right: 24, width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", border: "none", color: "#fff", fontSize: 26, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 24px rgba(46,204,113,0.35)", zIndex: 9999, transition: "transform 0.2s, box-shadow 0.2s" },
+    panel: { position: "fixed", bottom: 92, right: 24, width: 370, maxWidth: "calc(100vw - 48px)", height: 480, maxHeight: "calc(100vh - 120px)", background: "rgba(10,22,40,0.97)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 16, display: "flex", flexDirection: "column", zIndex: 9998, boxShadow: "0 12px 48px rgba(0,0,0,0.5)", backdropFilter: "blur(16px)", overflow: "hidden", animation: "up 0.25s ease both" },
+    hdr: { padding: "16px 20px", borderBottom: "1px solid rgba(46,204,113,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 },
+    body: { flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 },
+    foot: { padding: "12px 14px", borderTop: "1px solid rgba(46,204,113,0.12)", display: "flex", gap: 8, flexShrink: 0 },
+    msgU: { alignSelf: "flex-end", background: "rgba(46,204,113,0.15)", border: "1px solid rgba(46,204,113,0.2)", borderRadius: "14px 14px 4px 14px", padding: "10px 14px", maxWidth: "82%", fontSize: 13.5, lineHeight: 1.55, color: "#fff", wordBreak: "break-word" },
+    msgA: { alignSelf: "flex-start", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px 14px 14px 4px", padding: "10px 14px", maxWidth: "82%", fontSize: 13.5, lineHeight: 1.55, color: "rgba(255,255,255,0.88)", wordBreak: "break-word" },
+    inp: { flex: 1, background: "rgba(255,255,255,0.08)", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 10, padding: "10px 14px", color: "#fff", fontSize: 13.5, fontFamily: "'DM Sans',sans-serif", outline: "none", resize: "none" },
+    send: { background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", border: "none", borderRadius: 10, width: 42, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#fff", fontSize: 18, transition: "opacity 0.15s" },
+  };
+
+  return (
+    <>
+      {/* Chat panel */}
+      {open && (
+        <div style={CS.panel}>
+          <div style={CS.hdr}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>✦</span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#fff", fontFamily: "'DM Sans',sans-serif" }}>Mercavex Assistant</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", marginTop: 1 }}>AI-powered help</div>
+              </div>
+            </div>
+            <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", cursor: "pointer", fontSize: 20, padding: 4 }}>✕</button>
+          </div>
+
+          <div ref={scrollRef} style={CS.body}>
+            {messages.length === 0 && (
+              <div style={{ textAlign: "center", marginTop: 40, color: "rgba(255,255,255,0.25)", fontSize: 13, lineHeight: 1.7 }}>
+                <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.6 }}>✦</div>
+                <div style={{ fontWeight: 700, color: "rgba(255,255,255,0.45)", marginBottom: 6 }}>How can I help?</div>
+                Ask me about campaigns, analytics,<br/>platforms, or anything Mercavex.
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} style={m.role === "user" ? CS.msgU : CS.msgA}>
+                {m.content}
+              </div>
+            ))}
+            {busy && (
+              <div style={{ ...CS.msgA, color: "rgba(255,255,255,0.35)" }}>
+                <span style={{ display: "inline-flex", gap: 4 }}>
+                  <span style={{ animation: "dot 1s ease infinite" }}>●</span>
+                  <span style={{ animation: "dot 1s ease 0.2s infinite" }}>●</span>
+                  <span style={{ animation: "dot 1s ease 0.4s infinite" }}>●</span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div style={CS.foot}>
+            <input
+              style={CS.inp}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send())}
+              placeholder="Ask anything about Mercavex…"
+              disabled={busy}
+            />
+            <button style={CS.send} onClick={send} disabled={busy || !input.trim()}>
+              ↑
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating action button */}
+      <button
+        style={CS.fab}
+        onClick={() => setOpen(o => !o)}
+        title="Mercavex Assistant"
+      >
+        {open ? "✕" : "✦"}
+      </button>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────
 //  MAIN APP
 // ─────────────────────────────────────────────
 export default function App() {
@@ -2353,6 +2469,10 @@ export default function App() {
         )}
 
       </div>
+
+      {/* ══════════ HELPER CHATBOT ══════════ */}
+      <HelperChat session={session} />
+
     </div>
   );
 }
