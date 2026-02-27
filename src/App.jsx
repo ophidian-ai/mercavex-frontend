@@ -144,6 +144,434 @@ function AdCard({ ad, index, approved, onApprove, onRevise, revising, feedback, 
 }
 
 // ─────────────────────────────────────────────
+//  ACCOUNT SCREEN
+// ─────────────────────────────────────────────
+function AccountScreen({ user, session, onProfileUpdate }) {
+  const [fullName,     setFullName]     = useState("");
+  const [currentPw,   setCurrentPw]    = useState("");
+  const [newPw,        setNewPw]        = useState("");
+  const [confirmPw,    setConfirmPw]    = useState("");
+  const [ayrshareKey,  setAyrshareKey]  = useState("");
+  const [profileBusy,  setProfileBusy]  = useState(false);
+  const [pwBusy,       setPwBusy]       = useState(false);
+  const [keyBusy,      setKeyBusy]      = useState(false);
+  const [profileMsg,   setProfileMsg]   = useState(null); // { type, text }
+  const [pwMsg,        setPwMsg]        = useState(null);
+  const [keyMsg,       setKeyMsg]       = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Load existing profile on mount
+  useEffect(() => {
+    if (!session) return;
+    fetch(`${BACKEND_URL}/user/profile`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d.full_name)        setFullName(d.full_name);
+        if (d.ayrshare_api_key) setAyrshareKey(d.ayrshare_api_key);
+      })
+      .catch(() => {});
+  }, [session]);
+
+  const saveProfile = async () => {
+    setProfileBusy(true); setProfileMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/user/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ full_name: fullName }),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message || "Failed");
+      setProfileMsg({ type: "success", text: "Profile updated." });
+      if (onProfileUpdate) onProfileUpdate(fullName);
+    } catch (e) {
+      setProfileMsg({ type: "error", text: e.message });
+    }
+    setProfileBusy(false);
+  };
+
+  const changePassword = async () => {
+    setPwMsg(null);
+    if (!newPw) return setPwMsg({ type: "error", text: "Enter a new password." });
+    if (newPw !== confirmPw) return setPwMsg({ type: "error", text: "Passwords do not match." });
+    if (newPw.length < 6) return setPwMsg({ type: "error", text: "Password must be at least 6 characters." });
+    setPwBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPw });
+      if (error) throw error;
+      setPwMsg({ type: "success", text: "Password updated successfully." });
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+    } catch (e) {
+      setPwMsg({ type: "error", text: e.message });
+    }
+    setPwBusy(false);
+  };
+
+  const saveAyrshareKey = async () => {
+    setKeyBusy(true); setKeyMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/user/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ ayrshare_api_key: ayrshareKey }),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message || "Failed");
+      setKeyMsg({ type: "success", text: "API key saved." });
+    } catch (e) {
+      setKeyMsg({ type: "error", text: e.message });
+    }
+    setKeyBusy(false);
+  };
+
+  const initials = (fullName || user?.email || "?").charAt(0).toUpperCase();
+  const displayEmail = user?.email || "";
+
+  const S = {
+    section: { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 16, padding: "26px 28px", marginBottom: 18 },
+    label:   { display: "block", color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.8, marginBottom: 8, textTransform: "uppercase" },
+    inp:     { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "12px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 14 },
+    btn:     { background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 9, padding: "11px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 3px 12px rgba(46,204,113,0.2)" },
+    ghost:   { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 9, padding: "11px 22px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+    danger:  { background: "rgba(255,59,48,0.08)", color: "#FF6B6B", border: "1px solid rgba(255,59,48,0.2)", borderRadius: 9, padding: "11px 22px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+    sectionTitle: { color: "#fff", fontWeight: 700, fontSize: 15.5, marginBottom: 18, display: "flex", alignItems: "center", gap: 10 },
+    msg:     (type) => ({ background: type === "success" ? "rgba(46,204,113,0.08)" : "rgba(255,59,48,0.08)", border: `1px solid ${type === "success" ? "rgba(46,204,113,0.25)" : "rgba(255,59,48,0.25)"}`, borderRadius: 9, padding: "10px 14px", color: type === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, marginTop: 4, marginBottom: 8 }),
+  };
+
+  return (
+    <div style={{ animation: "up 0.35s ease both" }}>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ color: "#fff", fontSize: 26, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.2 }}>
+          Account<br /><span style={{ color: "#2ECC71" }}>Settings.</span>
+        </div>
+        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, marginTop: 8 }}>
+          Manage your profile, password, and integrations.
+        </div>
+      </div>
+
+      {/* ── Avatar + Identity ── */}
+      <div style={{ ...S.section, display: "flex", alignItems: "center", gap: 20 }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, color: "#fff", flexShrink: 0, boxShadow: "0 4px 18px rgba(46,204,113,0.25)" }}>
+          {initials}
+        </div>
+        <div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 17 }}>{fullName || "No name set"}</div>
+          <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, marginTop: 3 }}>{displayEmail}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+            <span style={{ background: "rgba(46,204,113,0.12)", border: "1px solid rgba(46,204,113,0.25)", color: "#2ECC71", fontSize: 10.5, fontWeight: 700, letterSpacing: 1.5, padding: "3px 10px", borderRadius: 20 }}>FREE PLAN</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Profile Info ── */}
+      <div style={S.section}>
+        <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>◉</span> Profile Information</div>
+        <label style={S.label}>Full Name</label>
+        <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your name" style={S.inp} />
+        <label style={S.label}>Email Address</label>
+        <input value={displayEmail} disabled style={{ ...S.inp, opacity: 0.45, cursor: "not-allowed" }} />
+        <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: -8, marginBottom: 16 }}>
+          Email changes must be requested via support.
+        </div>
+        {profileMsg && <div style={S.msg(profileMsg.type)}>{profileMsg.text}</div>}
+        <button onClick={saveProfile} disabled={profileBusy} style={S.btn}>
+          {profileBusy ? "Saving…" : "Save Profile"}
+        </button>
+      </div>
+
+      {/* ── Password ── */}
+      <div style={S.section}>
+        <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>◈</span> Change Password</div>
+        <label style={S.label}>New Password</label>
+        <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Min. 6 characters" style={S.inp} />
+        <label style={S.label}>Confirm New Password</label>
+        <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat password" style={S.inp} onKeyDown={e => e.key === "Enter" && changePassword()} />
+        {pwMsg && <div style={S.msg(pwMsg.type)}>{pwMsg.text}</div>}
+        <button onClick={changePassword} disabled={pwBusy} style={S.btn}>
+          {pwBusy ? "Updating…" : "Update Password"}
+        </button>
+      </div>
+
+      {/* ── Ayrshare Key ── */}
+      <div style={S.section}>
+        <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>⟳</span> Ayrshare Integration</div>
+        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 16 }}>
+          Your Ayrshare API key connects Mercavex to your social platforms. Find it in your Ayrshare dashboard.
+        </div>
+        <label style={S.label}>API Key</label>
+        <input
+          value={ayrshareKey}
+          onChange={e => setAyrshareKey(e.target.value)}
+          placeholder="AYRS-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
+          style={{ ...S.inp, fontFamily: "monospace", fontSize: 13, letterSpacing: 0.5 }}
+        />
+        {keyMsg && <div style={S.msg(keyMsg.type)}>{keyMsg.text}</div>}
+        <button onClick={saveAyrshareKey} disabled={keyBusy} style={S.btn}>
+          {keyBusy ? "Saving…" : "Save API Key"}
+        </button>
+      </div>
+
+      {/* ── Danger Zone ── */}
+      <div style={{ ...S.section, border: "1px solid rgba(255,59,48,0.15)" }}>
+        <div style={{ ...S.sectionTitle, color: "#FCA5A5" }}><span>⚠</span> Danger Zone</div>
+        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 16 }}>
+          Deleting your account is permanent. All campaigns, data, and settings will be lost and cannot be recovered.
+        </div>
+        {!showDeleteConfirm ? (
+          <button onClick={() => setShowDeleteConfirm(true)} style={S.danger}>Delete Account</button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, fontStyle: "italic" }}>Are you absolutely sure?</span>
+            <button style={{ ...S.danger, background: "rgba(255,59,48,0.2)", border: "1px solid rgba(255,59,48,0.4)" }}
+              onClick={async () => {
+                await supabase.auth.admin?.deleteUser?.(user.id).catch(() => {});
+                await supabase.auth.signOut();
+              }}>
+              Yes, Delete Everything
+            </button>
+            <button onClick={() => setShowDeleteConfirm(false)} style={S.ghost}>Cancel</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+//  BILLING SCREEN
+// ─────────────────────────────────────────────
+const PLANS = [
+  {
+    id: "free",
+    name: "Free",
+    price: "$0",
+    period: "forever",
+    icon: "✦",
+    color: "rgba(255,255,255,0.25)",
+    glow: "rgba(255,255,255,0.05)",
+    features: [
+      "3 campaigns / month",
+      "AI ad generation (3 variants)",
+      "2 social platforms",
+      "Campaign dashboard",
+      "Basic analytics",
+    ],
+    missing: [
+      "AI image generation",
+      "AI video generation",
+      "Unlimited platforms",
+      "Team members",
+      "Priority support",
+    ],
+    cta: "Current Plan",
+    current: true,
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    price: "$29",
+    period: "/ month",
+    icon: "◉",
+    color: "#2ECC71",
+    glow: "rgba(46,204,113,0.15)",
+    badge: "Most Popular",
+    features: [
+      "Unlimited campaigns",
+      "AI ad generation (3 variants)",
+      "All 10 social platforms",
+      "AI image generation",
+      "AI video generation",
+      "Full analytics suite",
+      "Priority support",
+    ],
+    missing: [
+      "Team members",
+      "White-label reports",
+    ],
+    cta: "Upgrade to Pro",
+    current: false,
+  },
+  {
+    id: "agency",
+    name: "Agency",
+    price: "$79",
+    period: "/ month",
+    icon: "◈",
+    color: "#4DFF8F",
+    glow: "rgba(77,255,143,0.12)",
+    badge: "Full Suite",
+    features: [
+      "Everything in Pro",
+      "Up to 5 team members",
+      "Role-based access control",
+      "Shared Ayrshare workspace",
+      "White-label client reports",
+      "Dedicated account manager",
+      "SLA guarantee",
+    ],
+    missing: [],
+    cta: "Upgrade to Agency",
+    current: false,
+  },
+];
+
+function BillingScreen({ user, session }) {
+  const [billingMsg, setBillingMsg] = useState(null);
+
+  const handleUpgrade = (planId) => {
+    setBillingMsg({ type: "info", text: `Stripe billing for the ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan is coming soon. We'll notify you at ${user?.email} when it launches.` });
+  };
+
+  return (
+    <div style={{ animation: "up 0.35s ease both" }}>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ color: "#fff", fontSize: 26, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.2 }}>
+          Plans &amp;<br /><span style={{ color: "#2ECC71" }}>Billing.</span>
+        </div>
+        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, marginTop: 8 }}>
+          Choose the plan that fits your business. Upgrade anytime — no lock-in.
+        </div>
+      </div>
+
+      {billingMsg && (
+        <div style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 10, padding: "13px 16px", color: "#93C5FD", fontSize: 13, lineHeight: 1.65, marginBottom: 20 }}>
+          {billingMsg.text}
+        </div>
+      )}
+
+      {/* ── Current usage summary ── */}
+      <div style={{ background: "rgba(46,204,113,0.05)", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 16, padding: "22px 26px", marginBottom: 24 }}>
+        <div style={{ color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>CURRENT BILLING PERIOD</div>
+        <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
+          {[
+            { label: "Campaigns", used: 0, limit: 3 },
+            { label: "AI Generations", used: 0, limit: 9 },
+            { label: "Posts Published", used: 0, limit: 15 },
+          ].map(m => (
+            <div key={m.label} style={{ minWidth: 110 }}>
+              <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>{m.label.toUpperCase()}</div>
+              <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
+                {m.used}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{m.limit}</span>
+              </div>
+              <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.08)", marginTop: 8, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${(m.used / m.limit) * 100}%`, background: "linear-gradient(90deg, #1A8A3C, #2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: 16 }}>
+          Resets at the start of each billing period.
+        </div>
+      </div>
+
+      {/* ── Plan cards ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
+        {PLANS.map((plan, i) => (
+          <div key={plan.id} style={{
+            background: plan.current ? `rgba(46,204,113,0.04)` : "rgba(255,255,255,0.02)",
+            border: `1.5px solid ${plan.current ? "rgba(46,204,113,0.3)" : "rgba(255,255,255,0.07)"}`,
+            borderRadius: 18,
+            padding: "28px 24px",
+            position: "relative",
+            animation: `up 0.4s ${i * 0.08}s ease both`,
+            opacity: 0,
+            transition: "border-color 0.25s",
+          }}>
+            {plan.badge && (
+              <div style={{ position: "absolute", top: -11, left: 24, background: `linear-gradient(135deg, #1A8A3C, #2ECC71)`, color: "#fff", fontSize: 10, fontWeight: 800, letterSpacing: 1.5, padding: "3px 12px", borderRadius: 20, boxShadow: "0 2px 10px rgba(46,204,113,0.3)" }}>
+                {plan.badge.toUpperCase()}
+              </div>
+            )}
+            {plan.current && (
+              <div style={{ position: "absolute", top: -11, right: 24, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 800, letterSpacing: 1.5, padding: "3px 12px", borderRadius: 20 }}>
+                ACTIVE
+              </div>
+            )}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <span style={{ color: plan.color, fontSize: 16 }}>{plan.icon}</span>
+              <span style={{ color: plan.color, fontWeight: 800, fontSize: 16, letterSpacing: -0.3 }}>{plan.name}</span>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ color: "#fff", fontWeight: 800, fontSize: 36, letterSpacing: -1.5 }}>{plan.price}</span>
+              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 14, marginLeft: 4 }}>{plan.period}</span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 24 }}>
+              {plan.features.map(f => (
+                <div key={f} style={{ display: "flex", alignItems: "flex-start", gap: 9, color: "rgba(255,255,255,0.7)", fontSize: 13 }}>
+                  <span style={{ color: plan.color, fontWeight: 800, fontSize: 13, flexShrink: 0, marginTop: 1 }}>✓</span>
+                  {f}
+                </div>
+              ))}
+              {plan.missing.map(f => (
+                <div key={f} style={{ display: "flex", alignItems: "flex-start", gap: 9, color: "rgba(255,255,255,0.22)", fontSize: 13 }}>
+                  <span style={{ color: "rgba(255,255,255,0.18)", fontWeight: 800, fontSize: 13, flexShrink: 0, marginTop: 1 }}>—</span>
+                  {f}
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => !plan.current && handleUpgrade(plan.id)}
+              disabled={plan.current}
+              style={{
+                width: "100%",
+                background: plan.current
+                  ? "rgba(255,255,255,0.05)"
+                  : `linear-gradient(135deg, #1A8A3C 0%, ${plan.color} 100%)`,
+                color: plan.current ? "rgba(255,255,255,0.35)" : "#fff",
+                border: plan.current ? "1px solid rgba(255,255,255,0.1)" : "none",
+                borderRadius: 10,
+                padding: "13px 0",
+                fontWeight: 700,
+                fontSize: 13.5,
+                cursor: plan.current ? "default" : "pointer",
+                fontFamily: "inherit",
+                boxShadow: plan.current ? "none" : "0 4px 16px rgba(46,204,113,0.22)",
+                letterSpacing: 0.2,
+              }}>
+              {plan.current ? "✓ " + plan.cta : plan.cta + " →"}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Stripe notice ── */}
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
+          💳
+        </div>
+        <div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Stripe Billing — Coming Soon</div>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, lineHeight: 1.6 }}>
+            Secure subscription management via Stripe is in active development. Plan upgrades, invoices, and a full billing portal will be available at launch.
+          </div>
+        </div>
+      </div>
+
+      {/* ── FAQ ── */}
+      <div style={{ marginTop: 24 }}>
+        <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>FREQUENTLY ASKED</div>
+        {[
+          { q: "Can I cancel anytime?", a: "Yes — no contracts, no hidden fees. Cancel from the billing portal with one click." },
+          { q: "What counts as a campaign?", a: "Each time you generate and publish a set of ads is one campaign. Duplicating an existing campaign also counts." },
+          { q: "Do unused credits roll over?", a: "Monthly limits reset at the start of each billing period and do not roll over." },
+        ].map((item, i) => (
+          <div key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "16px 0" }}>
+            <div style={{ color: "rgba(255,255,255,0.7)", fontWeight: 700, fontSize: 13.5, marginBottom: 6 }}>{item.q}</div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, lineHeight: 1.65 }}>{item.a}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 //  AUTH SCREEN
 // ─────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
@@ -1104,17 +1532,25 @@ export default function App() {
             { id: "campaign",  label: "New Campaign", icon: "✦" },
             { id: "dashboard", label: "Campaigns",    icon: "◉" },
             { id: "analytics", label: "Analytics",    icon: "◈" },
+            { id: "account",   label: "Account",      icon: "⊙" },
+            { id: "billing",   label: "Billing",      icon: "◇" },
           ].map(tab => {
             const isActive = tab.id === "analytics"
               ? screen === "analytics"
               : tab.id === "dashboard"
               ? screen === "dashboard"
-              : screen !== "dashboard" && screen !== "analytics";
+              : tab.id === "account"
+              ? screen === "account"
+              : tab.id === "billing"
+              ? screen === "billing"
+              : screen !== "dashboard" && screen !== "analytics" && screen !== "account" && screen !== "billing";
             return (
               <button key={tab.id}
                 onClick={() => {
                   if (tab.id === "dashboard")      setScreen("dashboard");
                   else if (tab.id === "analytics") setScreen("analytics");
+                  else if (tab.id === "account")   setScreen("account");
+                  else if (tab.id === "billing")   setScreen("billing");
                   else                             setScreen(ayrshareKey ? "input" : "connect");
                 }}
                 style={{
@@ -1837,6 +2273,18 @@ export default function App() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ══════════ ACCOUNT ══════════ */}
+        {screen === "account" && (
+          <AccountScreen user={user} session={session} onProfileUpdate={(name) => {
+            // Optionally refresh user display
+          }} />
+        )}
+
+        {/* ══════════ BILLING ══════════ */}
+        {screen === "billing" && (
+          <BillingScreen user={user} session={session} />
         )}
 
       </div>
