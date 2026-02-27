@@ -514,19 +514,21 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
               </a>
             </div>
           )}
-          <div style={{ ...S.section, borderColor: "rgba(99,102,241,0.2)" }}>
-            <div style={S.sectionTitle}><span style={{ color: "#A5B4FC" }}>&#9675;</span> SLA Guarantee</div>
-            {[
-              { label: "Priority Email", value: "4-hour response" },
-              { label: "Critical Issues", value: "1-hour escalation" },
-              { label: "Uptime Target",  value: "99.9% SLA" },
-            ].map(({ label, value }) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{label}</span>
-                <span style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 13 }}>{value}</span>
-              </div>
-            ))}
-          </div>
+          {isAgency && (
+            <div style={{ ...S.section, borderColor: "rgba(99,102,241,0.2)" }}>
+              <div style={S.sectionTitle}><span style={{ color: "#A5B4FC" }}>&#9675;</span> SLA Guarantee</div>
+              {[
+                { label: "Priority Email", value: "4-hour response" },
+                { label: "Critical Issues", value: "1-hour escalation" },
+                { label: "Uptime Target",  value: "99.9% SLA" },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{label}</span>
+                  <span style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 13 }}>{value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -536,10 +538,10 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
           <div style={S.section}>
             <div style={S.sectionTitle}>
               <span style={{ color: "#4DFF8F" }}>&#9672;</span> Team Members
-              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: 600 }}>({teamMembers.length}/5)</span>
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: 600 }}>({teamMembers.length}/4)</span>
             </div>
             <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 20 }}>
-              Invite up to 5 colleagues. Members share your Ayrshare connection and campaign workspace.
+              Invite up to 4 colleagues. Members share your Ayrshare connection and campaign workspace.
             </div>
             <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
               <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="colleague@company.com"
@@ -550,7 +552,7 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
                 <option value="member">Member</option>
                 <option value="admin">Admin</option>
               </select>
-              <button onClick={inviteMember} disabled={inviteBusy || teamMembers.length >= 5} style={{ ...S.btn, padding: "11px 20px", flexShrink: 0 }}>
+              <button onClick={inviteMember} disabled={inviteBusy || teamMembers.length >= 4} style={{ ...S.btn, padding: "11px 20px", flexShrink: 0 }}>
                 {inviteBusy ? "Inviting…" : "+ Invite"}
               </button>
             </div>
@@ -1253,11 +1255,6 @@ function AuthScreen({ onAuth }) {
                   {planWhitelabelEnabled && analytics && analytics.totalPosts > 0 && (
                     <button onClick={exportReport} style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px", color: "#4DFF8F", borderColor: "rgba(77,255,143,0.3)", display: "flex", alignItems: "center", gap: 7 }}>
                       ⬇ Export Report <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, background: "rgba(77,255,143,0.12)", padding: "2px 6px", borderRadius: 4 }}>WHITE-LABEL</span>
-                    </button>
-                  )}
-                  {planExportEnabled && !planWhitelabelEnabled && analytics && analytics.totalPosts > 0 && (
-                    <button onClick={exportReport} style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px", display: "flex", alignItems: "center", gap: 7 }}>
-                      ⬇ Export Report
                     </button>
                   )}
                   <button style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px" }} onClick={loadAnalytics} disabled={analyticsLoading}>
