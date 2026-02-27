@@ -584,7 +584,7 @@ function AuthScreen({ onAuth }) {
   const [success, setSuccess]   = useState("");
 
   const S = {
-    page:  { minHeight: "100vh", width: "100%", backgroundImage: `url(${LOGO})`, backgroundSize: "cover", backgroundPosition: "center right", backgroundRepeat: "no-repeat", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "30px 20px" },
+    page:  { minHeight: "100vh", width: "100%", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "30px 20px" },
     card:  { width: "100%", maxWidth: 440, background: "rgba(10,22,40,0.82)", backdropFilter: "blur(18px)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 20, padding: "44px 40px", animation: "up 0.5s ease both" },
     inp:   { width: "100%", background: "rgba(255,255,255,0.08)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "13px 15px", color: "#fff", fontSize: 14.5, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 14, transition: "border 0.2s" },
     btn:   { width: "100%", background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "14px 0", fontWeight: 700, fontSize: 15, cursor: "pointer", fontFamily: "inherit", letterSpacing: -0.2, boxShadow: "0 4px 20px rgba(46,204,113,0.28)", marginTop: 6 },
@@ -639,6 +639,14 @@ function AuthScreen({ onAuth }) {
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
         html, body, #root { margin: 0; padding: 0; width: 100%; min-height: 100vh; }
+        body {
+          background-color: #0A1628;
+          background-image: url(${LOGO});
+          background-size: cover;
+          background-position: center right;
+          background-repeat: no-repeat;
+          background-attachment: fixed;
+        }
         @keyframes up { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
         @keyframes glowPulse { 0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))} 50%{filter:drop-shadow(0 0 14px rgba(46,204,113,0.7))} }
         @keyframes serpentine { 0%,100%{transform:translateY(0) rotate(0deg)} 30%{transform:translateY(-3px) rotate(0.8deg)} 70%{transform:translateY(3px) rotate(-0.8deg)} }
@@ -1436,7 +1444,7 @@ export default function App() {
 
   // ── Styles ────────────────────────────────────
   const S = {
-    page:  { minHeight: "100vh", width: "100%", backgroundColor: "#0A1628", backgroundImage: `url(${LOGO})`, backgroundSize: "cover", backgroundPosition: "center right", backgroundRepeat: "no-repeat", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#fff" },
+    page:  { minHeight: "100vh", width: "100%", fontFamily: "'DM Sans','Segoe UI',sans-serif", color: "#fff" },
     hdr:   { borderBottom: "1px solid rgba(46,204,113,0.1)", padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(10,22,40,0.85)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 100 },
     logo:  { fontSize: 20, fontWeight: 800, letterSpacing: -0.8, fontFamily: "'DM Sans',sans-serif" },
     wrap:  { maxWidth: 680, margin: "0 auto", padding: "50px 22px 80px" },
@@ -1455,7 +1463,7 @@ export default function App() {
     return (
       <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans',sans-serif" }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700;800&display=swap" />
-        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
+        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}body{background-color:#0A1628;background-image:url(${LOGO});background-size:cover;background-position:center right;background-repeat:no-repeat;background-attachment:fixed;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
         <div style={{ textAlign: "center" }}>
           <div style={{ animation: "glowPulse 1.6s ease-in-out infinite", fontSize: 40 }}>⚙️</div>
           <div style={{ color: "rgba(255,255,255,0.25)", marginTop: 14, fontSize: 13 }}>Loading Mercavex…</div>
@@ -1472,7 +1480,7 @@ export default function App() {
     return (
       <div style={{ ...S.page, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans',sans-serif" }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@700;800&display=swap" />
-        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
+        <style>{`html,body,#root{margin:0;padding:0;width:100%;min-height:100vh;}body{background-color:#0A1628;background-image:url(${LOGO});background-size:cover;background-position:center right;background-repeat:no-repeat;background-attachment:fixed;}@keyframes glowPulse{0%,100%{filter:drop-shadow(0 0 6px rgba(46,204,113,0.3))}50%{filter:drop-shadow(0 0 18px rgba(46,204,113,0.8))}}`}</style>
         <div style={{ textAlign: "center" }}>
           <div style={{ animation: "glowPulse 1.6s ease-in-out infinite", fontSize: 36 }}>🔗</div>
           <div style={{ color: "rgba(255,255,255,0.3)", marginTop: 14, fontSize: 13 }}>Restoring your connections…</div>
@@ -1488,6 +1496,14 @@ export default function App() {
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
         html, body, #root { margin: 0; padding: 0; width: 100%; min-height: 100vh; }
+        body {
+          background-color: #0A1628;
+          background-image: url(${LOGO});
+          background-size: cover;
+          background-position: center right;
+          background-repeat: no-repeat;
+          background-attachment: fixed;
+        }
         @keyframes dot        { 0%,100%{opacity:.2;transform:scale(.7)} 50%{opacity:1;transform:scale(1)} }
         @keyframes up         { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin       { to{transform:rotate(360deg)} }
