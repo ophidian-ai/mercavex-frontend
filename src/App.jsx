@@ -147,49 +147,178 @@ function AdCard({ ad, index, approved, onApprove, onRevise, revising, feedback, 
 // ─────────────────────────────────────────────
 //  ACCOUNT SCREEN
 // ─────────────────────────────────────────────
-function AccountScreen({ user, session, onProfileUpdate }) {
+// ─────────────────────────────────────────────
+//  TEAM MANAGEMENT  (Agency plan only)
+// ─────────────────────────────────────────────
+function TeamManagement({ session }) {
+  const [members, setMembers] = useState([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole]   = useState("member");
+  const [loading, setLoading]   = useState(true);
+  const [busy, setBusy]         = useState(false);
+  const [msg, setMsg]           = useState(null);
+
+  const authH = { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` };
+
+  useEffect(() => {
+    if (!session) return;
+    fetch(`${BACKEND_URL}/team/members`, { headers: authH })
+      .then(r => r.json())
+      .then(d => { setMembers(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [session]);
+
+  const invite = async () => {
+    if (!inviteEmail.trim()) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/team/invite`, {
+        method: "POST", headers: authH,
+        body: JSON.stringify({ email: inviteEmail.trim().toLowerCase(), role: inviteRole }),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message);
+      setMsg({ type: "success", text: d.message });
+      setInviteEmail("");
+      // Refresh list
+      const r2 = await fetch(`${BACKEND_URL}/team/members`, { headers: authH });
+      const d2 = await r2.json();
+      setMembers(Array.isArray(d2) ? d2 : []);
+    } catch (e) {
+      setMsg({ type: "error", text: e.message });
+    }
+    setBusy(false);
+  };
+
+  const remove = async (id) => {
+    try {
+      await fetch(`${BACKEND_URL}/team/members/${id}`, { method: "DELETE", headers: authH });
+      setMembers(prev => prev.filter(m => m.id !== id));
+    } catch {}
+  };
+
+  const S2 = {
+    label: { display: "block", color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.8, marginBottom: 8, textTransform: "uppercase" },
+    inp:   { flex: 1, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "12px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" },
+    btn:   { background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 9, padding: "11px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" },
+    msg:   (t) => ({ background: t === "success" ? "rgba(46,204,113,0.08)" : "rgba(255,59,48,0.08)", border: `1px solid ${t === "success" ? "rgba(46,204,113,0.25)" : "rgba(255,59,48,0.25)"}`, borderRadius: 9, padding: "10px 14px", color: t === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, marginTop: 8 }),
+  };
+
+  return (
+    <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 16, padding: "26px 28px", marginBottom: 18 }}>
+      <div style={{ color: "#fff", fontWeight: 700, fontSize: 15.5, marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ color: "#4DFF8F" }}>👥</span> Team Members
+        <span style={{ background: "rgba(77,255,143,0.1)", border: "1px solid rgba(77,255,143,0.2)", color: "#4DFF8F", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, padding: "2px 8px", borderRadius: 20 }}>AGENCY</span>
+      </div>
+      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginBottom: 20 }}>
+        {members.length}/4 seats used. Members share your Ayrshare workspace and can create and post campaigns.
+      </div>
+
+      {/* Invite row */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+        <input
+          value={inviteEmail}
+          onChange={e => setInviteEmail(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && invite()}
+          placeholder="colleague@company.com"
+          style={S2.inp}
+        />
+        <select
+          value={inviteRole}
+          onChange={e => setInviteRole(e.target.value)}
+          style={{ ...S2.inp, flex: "0 0 auto", width: 110, cursor: "pointer" }}
+        >
+          <option value="member">Member</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button onClick={invite} disabled={busy || members.length >= 4} style={S2.btn}>
+          {busy ? "Adding…" : "Add Member"}
+        </button>
+      </div>
+      {msg && <div style={S2.msg(msg.type)}>{msg.text}</div>}
+
+      {/* Members list */}
+      {loading ? (
+        <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 13, marginTop: 16 }}>Loading team…</div>
+      ) : members.length === 0 ? (
+        <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 13, marginTop: 16, fontStyle: "italic" }}>No team members yet. Add a colleague above.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+          {members.map(m => (
+            <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 12, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "12px 16px" }}>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "rgba(46,204,113,0.15)", border: "1px solid rgba(46,204,113,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: "#2ECC71", flexShrink: 0 }}>
+                {m.invitee_email.charAt(0).toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: "#fff", fontWeight: 600, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.invitee_email}</div>
+                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, marginTop: 2, textTransform: "capitalize" }}>{m.role} · {m.status === "accepted" ? "✓ Active" : "⏳ Pending signup"}</div>
+              </div>
+              <button onClick={() => remove(m.id)} style={{ background: "none", border: "1px solid rgba(255,59,48,0.2)", color: "rgba(255,100,100,0.6)", borderRadius: 7, padding: "5px 11px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
+  const [tab,          setTab]          = useState("profile");
   const [fullName,     setFullName]     = useState("");
-  const [currentPw,   setCurrentPw]    = useState("");
   const [newPw,        setNewPw]        = useState("");
   const [confirmPw,    setConfirmPw]    = useState("");
   const [ayrshareKey,  setAyrshareKey]  = useState("");
   const [profileBusy,  setProfileBusy]  = useState(false);
   const [pwBusy,       setPwBusy]       = useState(false);
   const [keyBusy,      setKeyBusy]      = useState(false);
-  const [profileMsg,   setProfileMsg]   = useState(null); // { type, text }
+  const [profileMsg,   setProfileMsg]   = useState(null);
   const [pwMsg,        setPwMsg]        = useState(null);
   const [keyMsg,       setKeyMsg]       = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [teamMembers,  setTeamMembers]  = useState([]);
+  const [teamLoading,  setTeamLoading]  = useState(false);
+  const [inviteEmail,  setInviteEmail]  = useState("");
+  const [inviteRole,   setInviteRole]   = useState("member");
+  const [inviteBusy,   setInviteBusy]   = useState(false);
+  const [teamMsg,      setTeamMsg]      = useState(null);
 
-  // Load existing profile on mount
+  const isAgency = userPlan === "agency";
+  const isPro    = userPlan === "pro" || isAgency;
+  const authHdrs = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` });
+
   useEffect(() => {
     if (!session) return;
-    fetch(`${BACKEND_URL}/user/profile`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    })
+    fetch(`${BACKEND_URL}/user/profile`, { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then(r => r.json())
       .then(d => {
         if (d.full_name)        setFullName(d.full_name);
         if (d.ayrshare_api_key) setAyrshareKey(d.ayrshare_api_key);
-      })
-      .catch(() => {});
+      }).catch(() => {});
   }, [session]);
+
+  const loadTeam = async () => {
+    setTeamLoading(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/team`, { headers: authHdrs() });
+      const d = await r.json();
+      setTeamMembers(d.members || []);
+    } catch (e) {}
+    setTeamLoading(false);
+  };
+
+  useEffect(() => { if (tab === "team" && isAgency) loadTeam(); }, [tab]);
 
   const saveProfile = async () => {
     setProfileBusy(true); setProfileMsg(null);
     try {
-      const r = await fetch(`${BACKEND_URL}/user/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ full_name: fullName }),
-      });
+      const r = await fetch(`${BACKEND_URL}/user/profile`, { method: "PUT", headers: authHdrs(), body: JSON.stringify({ full_name: fullName }) });
       const d = await r.json();
       if (d.status !== "ok") throw new Error(d.message || "Failed");
       setProfileMsg({ type: "success", text: "Profile updated." });
       if (onProfileUpdate) onProfileUpdate(fullName);
-    } catch (e) {
-      setProfileMsg({ type: "error", text: e.message });
-    }
+    } catch (e) { setProfileMsg({ type: "error", text: e.message }); }
     setProfileBusy(false);
   };
 
@@ -202,58 +331,84 @@ function AccountScreen({ user, session, onProfileUpdate }) {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPw });
       if (error) throw error;
-      setPwMsg({ type: "success", text: "Password updated successfully." });
-      setCurrentPw(""); setNewPw(""); setConfirmPw("");
-    } catch (e) {
-      setPwMsg({ type: "error", text: e.message });
-    }
+      setPwMsg({ type: "success", text: "Password updated." });
+      setNewPw(""); setConfirmPw("");
+    } catch (e) { setPwMsg({ type: "error", text: e.message }); }
     setPwBusy(false);
   };
 
   const saveAyrshareKey = async () => {
     setKeyBusy(true); setKeyMsg(null);
     try {
-      const r = await fetch(`${BACKEND_URL}/user/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ ayrshare_api_key: ayrshareKey }),
-      });
+      const r = await fetch(`${BACKEND_URL}/user/profile`, { method: "PUT", headers: authHdrs(), body: JSON.stringify({ ayrshare_api_key: ayrshareKey }) });
       const d = await r.json();
       if (d.status !== "ok") throw new Error(d.message || "Failed");
       setKeyMsg({ type: "success", text: "API key saved." });
-    } catch (e) {
-      setKeyMsg({ type: "error", text: e.message });
-    }
+    } catch (e) { setKeyMsg({ type: "error", text: e.message }); }
     setKeyBusy(false);
   };
 
-  const initials = (fullName || user?.email || "?").charAt(0).toUpperCase();
+  const inviteMember = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteBusy(true); setTeamMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/team/invite`, { method: "POST", headers: authHdrs(), body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }) });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message || "Failed");
+      setTeamMsg({ type: "success", text: d.message });
+      setInviteEmail(""); setInviteRole("member");
+      await loadTeam();
+    } catch (e) { setTeamMsg({ type: "error", text: e.message }); }
+    setInviteBusy(false);
+  };
+
+  const removeMember = async (id) => {
+    try {
+      await fetch(`${BACKEND_URL}/team/${id}`, { method: "DELETE", headers: authHdrs() });
+      setTeamMembers(prev => prev.filter(m => m.id !== id));
+    } catch (e) {}
+  };
+
+  const updateRole = async (id, role) => {
+    try {
+      await fetch(`${BACKEND_URL}/team/${id}`, { method: "PATCH", headers: authHdrs(), body: JSON.stringify({ role }) });
+      setTeamMembers(prev => prev.map(m => m.id === id ? { ...m, role } : m));
+    } catch (e) {}
+  };
+
+  const initials    = (fullName || user?.email || "?").charAt(0).toUpperCase();
   const displayEmail = user?.email || "";
+  const planLabel   = { free: "FREE", pro: "PRO", agency: "AGENCY" }[userPlan] || "FREE";
+  const planColor   = userPlan === "agency" ? "#4DFF8F" : userPlan === "pro" ? "#2ECC71" : "rgba(255,255,255,0.45)";
 
   const S = {
-    section: { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 16, padding: "26px 28px", marginBottom: 18 },
-    label:   { display: "block", color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.8, marginBottom: 8, textTransform: "uppercase" },
-    inp:     { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "12px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 14 },
-    btn:     { background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 9, padding: "11px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 3px 12px rgba(46,204,113,0.2)" },
-    ghost:   { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 9, padding: "11px 22px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
-    danger:  { background: "rgba(255,59,48,0.08)", color: "#FF6B6B", border: "1px solid rgba(255,59,48,0.2)", borderRadius: 9, padding: "11px 22px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+    section:      { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 16, padding: "26px 28px", marginBottom: 18 },
+    label:        { display: "block", color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.8, marginBottom: 8, textTransform: "uppercase" },
+    inp:          { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "12px 14px", color: "#fff", fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 14 },
+    btn:          { background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", color: "#fff", border: "none", borderRadius: 9, padding: "11px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 3px 12px rgba(46,204,113,0.2)" },
+    ghost:        { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 9, padding: "11px 22px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+    danger:       { background: "rgba(255,59,48,0.08)", color: "#FF6B6B", border: "1px solid rgba(255,59,48,0.2)", borderRadius: 9, padding: "11px 22px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
     sectionTitle: { color: "#fff", fontWeight: 700, fontSize: 15.5, marginBottom: 18, display: "flex", alignItems: "center", gap: 10 },
-    msg:     (type) => ({ background: type === "success" ? "rgba(46,204,113,0.08)" : "rgba(255,59,48,0.08)", border: `1px solid ${type === "success" ? "rgba(46,204,113,0.25)" : "rgba(255,59,48,0.25)"}`, borderRadius: 9, padding: "10px 14px", color: type === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, marginTop: 4, marginBottom: 8 }),
+    msg:          (type) => ({ background: type === "success" ? "rgba(46,204,113,0.08)" : "rgba(255,59,48,0.08)", border: `1px solid ${type === "success" ? "rgba(46,204,113,0.25)" : "rgba(255,59,48,0.25)"}`, borderRadius: 9, padding: "10px 14px", color: type === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, marginTop: 4, marginBottom: 8 }),
   };
+
+  const tabs = [
+    { id: "profile", label: "Profile" },
+    ...(isPro    ? [{ id: "support", label: "Priority Support" }] : []),
+    ...(isAgency ? [{ id: "team",    label: "Team Members" }] : []),
+  ];
 
   return (
     <div style={{ animation: "up 0.35s ease both" }}>
-      <div style={{ marginBottom: 28 }}>
+      <div style={{ marginBottom: 24 }}>
         <div style={{ color: "#fff", fontSize: 26, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.2 }}>
           Account<br /><span style={{ color: "#2ECC71" }}>Settings.</span>
         </div>
-        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, marginTop: 8 }}>
-          Manage your profile, password, and integrations.
-        </div>
+        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 14, marginTop: 8 }}>Manage your profile, password, and integrations.</div>
       </div>
 
-      {/* ── Avatar + Identity ── */}
-      <div style={{ ...S.section, display: "flex", alignItems: "center", gap: 20 }}>
+      {/* Avatar */}
+      <div style={{ ...S.section, display: "flex", alignItems: "center", gap: 20, marginBottom: 20 }}>
         <div style={{ width: 64, height: 64, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C 0%, #2ECC71 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, color: "#fff", flexShrink: 0, boxShadow: "0 4px 18px rgba(46,204,113,0.25)" }}>
           {initials}
         </div>
@@ -261,84 +416,199 @@ function AccountScreen({ user, session, onProfileUpdate }) {
           <div style={{ color: "#fff", fontWeight: 700, fontSize: 17 }}>{fullName || "No name set"}</div>
           <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, marginTop: 3 }}>{displayEmail}</div>
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <span style={{ background: "rgba(46,204,113,0.12)", border: "1px solid rgba(46,204,113,0.25)", color: "#2ECC71", fontSize: 10.5, fontWeight: 700, letterSpacing: 1.5, padding: "3px 10px", borderRadius: 20 }}>FREE PLAN</span>
+            <span style={{ background: "rgba(46,204,113,0.12)", border: `1px solid ${planColor}60`, color: planColor, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.5, padding: "3px 10px", borderRadius: 20 }}>
+              {planLabel} PLAN
+            </span>
           </div>
         </div>
       </div>
 
-      {/* ── Profile Info ── */}
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>◉</span> Profile Information</div>
-        <label style={S.label}>Full Name</label>
-        <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your name" style={S.inp} />
-        <label style={S.label}>Email Address</label>
-        <input value={displayEmail} disabled style={{ ...S.inp, opacity: 0.45, cursor: "not-allowed" }} />
-        <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: -8, marginBottom: 16 }}>
-          Email changes must be requested via support.
+      {/* Tabs */}
+      {tabs.length > 1 && (
+        <div style={{ display: "flex", gap: 0, marginBottom: 22, borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              background: "none", border: "none", color: tab === t.id ? "#2ECC71" : "rgba(255,255,255,0.38)",
+              fontWeight: 700, fontSize: 13.5, cursor: "pointer", fontFamily: "inherit",
+              padding: "10px 18px 12px", borderBottom: tab === t.id ? "2px solid #2ECC71" : "2px solid transparent",
+              marginBottom: -1, transition: "all 0.15s",
+            }}>{t.label}</button>
+          ))}
         </div>
-        {profileMsg && <div style={S.msg(profileMsg.type)}>{profileMsg.text}</div>}
-        <button onClick={saveProfile} disabled={profileBusy} style={S.btn}>
-          {profileBusy ? "Saving…" : "Save Profile"}
-        </button>
-      </div>
+      )}
 
-      {/* ── Password ── */}
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>◈</span> Change Password</div>
-        <label style={S.label}>New Password</label>
-        <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Min. 6 characters" style={S.inp} />
-        <label style={S.label}>Confirm New Password</label>
-        <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat password" style={S.inp} onKeyDown={e => e.key === "Enter" && changePassword()} />
-        {pwMsg && <div style={S.msg(pwMsg.type)}>{pwMsg.text}</div>}
-        <button onClick={changePassword} disabled={pwBusy} style={S.btn}>
-          {pwBusy ? "Updating…" : "Update Password"}
-        </button>
-      </div>
-
-      {/* ── Ayrshare Key ── */}
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>⟳</span> Ayrshare Integration</div>
-        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 16 }}>
-          Your Ayrshare API key connects Mercavex to your social platforms. Find it in your Ayrshare dashboard.
-        </div>
-        <label style={S.label}>API Key</label>
-        <input
-          value={ayrshareKey}
-          onChange={e => setAyrshareKey(e.target.value)}
-          placeholder="AYRS-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
-          style={{ ...S.inp, fontFamily: "monospace", fontSize: 13, letterSpacing: 0.5 }}
-        />
-        {keyMsg && <div style={S.msg(keyMsg.type)}>{keyMsg.text}</div>}
-        <button onClick={saveAyrshareKey} disabled={keyBusy} style={S.btn}>
-          {keyBusy ? "Saving…" : "Save API Key"}
-        </button>
-      </div>
-
-      {/* ── Danger Zone ── */}
-      <div style={{ ...S.section, border: "1px solid rgba(255,59,48,0.15)" }}>
-        <div style={{ ...S.sectionTitle, color: "#FCA5A5" }}><span>⚠</span> Danger Zone</div>
-        <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 16 }}>
-          Deleting your account is permanent. All campaigns, data, and settings will be lost and cannot be recovered.
-        </div>
-        {!showDeleteConfirm ? (
-          <button onClick={() => setShowDeleteConfirm(true)} style={S.danger}>Delete Account</button>
-        ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, fontStyle: "italic" }}>Are you absolutely sure?</span>
-            <button style={{ ...S.danger, background: "rgba(255,59,48,0.2)", border: "1px solid rgba(255,59,48,0.4)" }}
-              onClick={async () => {
-                await supabase.auth.admin?.deleteUser?.(user.id).catch(() => {});
-                await supabase.auth.signOut();
-              }}>
-              Yes, Delete Everything
-            </button>
-            <button onClick={() => setShowDeleteConfirm(false)} style={S.ghost}>Cancel</button>
+      {/* PROFILE TAB */}
+      {tab === "profile" && (
+        <>
+          <div style={S.section}>
+            <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>◉</span> Profile Information</div>
+            <label style={S.label}>Full Name</label>
+            <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your name" style={S.inp} />
+            <label style={S.label}>Email Address</label>
+            <input value={displayEmail} disabled style={{ ...S.inp, opacity: 0.45, cursor: "not-allowed" }} />
+            <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: -8, marginBottom: 16 }}>Email changes must be requested via support.</div>
+            {profileMsg && <div style={S.msg(profileMsg.type)}>{profileMsg.text}</div>}
+            <button onClick={saveProfile} disabled={profileBusy} style={S.btn}>{profileBusy ? "Saving…" : "Save Profile"}</button>
           </div>
-        )}
-      </div>
+
+          <div style={S.section}>
+            <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>◈</span> Change Password</div>
+            <label style={S.label}>New Password</label>
+            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Min. 6 characters" style={S.inp} />
+            <label style={S.label}>Confirm New Password</label>
+            <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat password" style={S.inp} onKeyDown={e => e.key === "Enter" && changePassword()} />
+            {pwMsg && <div style={S.msg(pwMsg.type)}>{pwMsg.text}</div>}
+            <button onClick={changePassword} disabled={pwBusy} style={S.btn}>{pwBusy ? "Updating…" : "Update Password"}</button>
+          </div>
+
+          <div style={S.section}>
+            <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>&#8635;</span> Ayrshare Integration</div>
+            <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 16 }}>Your Ayrshare API key connects Mercavex to your social platforms. Find it in your Ayrshare dashboard.</div>
+            <label style={S.label}>API Key</label>
+            <input value={ayrshareKey} onChange={e => setAyrshareKey(e.target.value)} placeholder="AYRS-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" style={{ ...S.inp, fontFamily: "monospace", fontSize: 13, letterSpacing: 0.5 }} />
+            {keyMsg && <div style={S.msg(keyMsg.type)}>{keyMsg.text}</div>}
+            <button onClick={saveAyrshareKey} disabled={keyBusy} style={S.btn}>{keyBusy ? "Saving…" : "Save API Key"}</button>
+          </div>
+
+          <div style={{ ...S.section, border: "1px solid rgba(255,59,48,0.15)" }}>
+            <div style={{ ...S.sectionTitle, color: "#FCA5A5" }}><span>&#9888;</span> Danger Zone</div>
+            <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 16 }}>Deleting your account is permanent. All campaigns, data, and settings will be lost.</div>
+            {!showDeleteConfirm ? (
+              <button onClick={() => setShowDeleteConfirm(true)} style={S.danger}>Delete Account</button>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, fontStyle: "italic" }}>Are you absolutely sure?</span>
+                <button style={{ ...S.danger, background: "rgba(255,59,48,0.2)", border: "1px solid rgba(255,59,48,0.4)" }}
+                  onClick={async () => { await supabase.auth.admin?.deleteUser?.(user.id).catch(() => {}); await supabase.auth.signOut(); }}>
+                  Yes, Delete Everything
+                </button>
+                <button onClick={() => setShowDeleteConfirm(false)} style={S.ghost}>Cancel</button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* PRIORITY SUPPORT TAB */}
+      {tab === "support" && isPro && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ ...S.section, borderColor: "rgba(46,204,113,0.25)" }}>
+            <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>&#9733;</span> Priority Support</div>
+            <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13.5, lineHeight: 1.7, marginBottom: 22 }}>
+              As a {userPlan === "agency" ? "Agency" : "Pro"} subscriber you have priority access to the Mercavex support team. We aim to respond within 4 business hours.
+            </div>
+            <a href="mailto:support@ophidianai.com?subject=Mercavex%20Priority%20Support"
+              style={{ display: "inline-block", background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", textDecoration: "none", borderRadius: 9, padding: "11px 22px", fontWeight: 700, fontSize: 13, fontFamily: "inherit", boxShadow: "0 3px 12px rgba(46,204,113,0.2)" }}>
+              &#10003; Email Priority Support
+            </a>
+          </div>
+          {isAgency && (
+            <div style={{ ...S.section, borderColor: "rgba(77,255,143,0.2)" }}>
+              <div style={S.sectionTitle}><span style={{ color: "#4DFF8F" }}>&#9672;</span> Dedicated Account Manager</div>
+              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13.5, lineHeight: 1.7, marginBottom: 22 }}>
+                Your Agency plan includes a dedicated account manager for onboarding, strategy calls, and platform questions.
+              </div>
+              <a href="mailto:accounts@ophidianai.com?subject=Mercavex%20Agency%20Account"
+                style={{ display: "inline-block", background: "linear-gradient(135deg,#1A8A3C,#4DFF8F)", color: "#fff", textDecoration: "none", borderRadius: 9, padding: "11px 22px", fontWeight: 700, fontSize: 13, fontFamily: "inherit", boxShadow: "0 3px 12px rgba(77,255,143,0.2)" }}>
+                Contact Account Manager
+              </a>
+            </div>
+          )}
+          <div style={{ ...S.section, borderColor: "rgba(99,102,241,0.2)" }}>
+            <div style={S.sectionTitle}><span style={{ color: "#A5B4FC" }}>&#9675;</span> SLA Guarantee</div>
+            {[
+              { label: "Priority Email", value: "4-hour response" },
+              { label: "Critical Issues", value: "1-hour escalation" },
+              { label: "Uptime Target",  value: "99.9% SLA" },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>{label}</span>
+                <span style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 13 }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TEAM MEMBERS TAB */}
+      {tab === "team" && isAgency && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={S.section}>
+            <div style={S.sectionTitle}>
+              <span style={{ color: "#4DFF8F" }}>&#9672;</span> Team Members
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: 600 }}>({teamMembers.length}/5)</span>
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.65, marginBottom: 20 }}>
+              Invite up to 5 colleagues. Members share your Ayrshare connection and campaign workspace.
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="colleague@company.com"
+                onKeyDown={e => e.key === "Enter" && inviteMember()}
+                style={{ ...S.inp, flex: 1, minWidth: 180, marginBottom: 0 }} />
+              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 10, padding: "12px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, fontFamily: "inherit", outline: "none", cursor: "pointer", colorScheme: "dark" }}>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button onClick={inviteMember} disabled={inviteBusy || teamMembers.length >= 5} style={{ ...S.btn, padding: "11px 20px", flexShrink: 0 }}>
+                {inviteBusy ? "Inviting…" : "+ Invite"}
+              </button>
+            </div>
+            {teamMsg && <div style={S.msg(teamMsg.type)}>{teamMsg.text}</div>}
+            {teamLoading
+              ? <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, padding: "20px 0", textAlign: "center" }}>Loading team…</div>
+              : teamMembers.length === 0
+                ? <div style={{ textAlign: "center", padding: "28px 20px", border: "1.5px dashed rgba(255,255,255,0.08)", borderRadius: 12 }}>
+                    <div style={{ fontSize: 30, marginBottom: 8 }}>&#128101;</div>
+                    <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>No team members yet. Invite your first colleague above.</div>
+                  </div>
+                : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {teamMembers.map(m => (
+                      <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "13px 16px", flexWrap: "wrap" }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(46,204,113,0.12)", border: "1px solid rgba(46,204,113,0.25)", display: "flex", alignItems: "center", justifyContent: "center", color: "#2ECC71", fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+                          {m.member_email.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <div style={{ color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 13 }}>{m.member_email}</div>
+                          <span style={{ background: m.status === "active" ? "rgba(46,204,113,0.1)" : "rgba(255,255,255,0.05)", color: m.status === "active" ? "#2ECC71" : "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1.2, padding: "2px 8px", borderRadius: 20, marginTop: 4, display: "inline-block" }}>
+                            {m.status.toUpperCase()}
+                          </span>
+                        </div>
+                        <select value={m.role} onChange={e => updateRole(m.id, e.target.value)}
+                          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "6px 10px", color: "rgba(255,255,255,0.6)", fontSize: 12, fontFamily: "inherit", outline: "none", cursor: "pointer", colorScheme: "dark" }}>
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        <button onClick={() => removeMember(m.id)} style={{ background: "rgba(255,59,48,0.08)", color: "#FCA5A5", border: "1px solid rgba(255,59,48,0.15)", borderRadius: 8, padding: "7px 12px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+            }
+          </div>
+          <div style={S.section}>
+            <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>Role Permissions</div>
+            {[
+              { role: "Admin",  perms: ["Create & manage campaigns", "Post to all platforms", "View analytics", "Manage team members"] },
+              { role: "Member", perms: ["Create & manage campaigns", "Post to all platforms", "View analytics"] },
+            ].map(({ role, perms }) => (
+              <div key={role} style={{ marginBottom: 16 }}>
+                <div style={{ color: "#fff", fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>{role}</div>
+                {perms.map(p => (
+                  <div key={p} style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255,255,255,0.45)", fontSize: 13, marginBottom: 5 }}>
+                    <span style={{ color: "#2ECC71", fontWeight: 700 }}>&#10003;</span> {p}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 // ─────────────────────────────────────────────
 //  BILLING SCREEN
@@ -479,10 +749,10 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
   // Resolve PLANS with current plan as active
   const resolvedPlans = PLANS.map(p => ({ ...p, current: p.id === activePlan }));
   const usageLimits = {
-    free:   { campaigns: 3, ai: 9,     posts: 15 },
-    pro:    { campaigns: "∞", ai: "∞",  posts: "∞" },
-    agency: { campaigns: "∞", ai: "∞",  posts: "∞" },
-  }[activePlan] || { campaigns: 3, ai: 9, posts: 15 };
+    free:   { campaigns: 3,   platforms: 2  },
+    pro:    { campaigns: "∞", platforms: 10 },
+    agency: { campaigns: "∞", platforms: 10 },
+  }[activePlan] || { campaigns: 3, platforms: 2 };
 
   return (
     <div style={{ animation: "up 0.35s ease both" }}>
@@ -525,32 +795,73 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
 
       {/* ── Current usage summary ── */}
       <div style={{ background: "rgba(46,204,113,0.05)", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 16, padding: "22px 26px", marginBottom: 24 }}>
-        <div style={{ color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>YOUR PLAN LIMITS</div>
-        <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
-          {[
-            { label: "Campaigns",       used: activePlan === "free" ? (campaignsUsed || 0) : null, limit: usageLimits.campaigns },
-            { label: "AI Generations",  used: activePlan === "free" ? 0 : null,                    limit: usageLimits.ai },
-            { label: "Posts Published", used: activePlan === "free" ? 0 : null,                    limit: usageLimits.posts },
-          ].map(m => (
-            <div key={m.label} style={{ minWidth: 110 }}>
-              <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>{m.label.toUpperCase()}</div>
-              <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
-                {m.used !== null
-                  ? <>{m.used}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{m.limit}</span></>
-                  : <span style={{ color: "#2ECC71" }}>∞</span>
-                }
-              </div>
-              {m.used !== null && (
-                <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.08)", marginTop: 8, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${Math.min((m.used / m.limit) * 100, 100)}%`, background: m.used >= m.limit ? "linear-gradient(90deg, #ef4444, #f87171)" : "linear-gradient(90deg, #1A8A3C, #2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
-                </div>
-              )}
+        <div style={{ color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 16 }}>YOUR PLAN LIMITS</div>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+
+          {/* Campaigns — tracked & enforced */}
+          <div style={{ minWidth: 110 }}>
+            <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>CAMPAIGNS / MO</div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
+              {activePlan === "free"
+                ? <>{campaignsUsed || 0}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{usageLimits.campaigns}</span></>
+                : <span style={{ color: "#2ECC71" }}>∞</span>
+              }
             </div>
-          ))}
+            {activePlan === "free" && (
+              <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.08)", marginTop: 8, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.min(((campaignsUsed || 0) / usageLimits.campaigns) * 100, 100)}%`, background: (campaignsUsed || 0) >= usageLimits.campaigns ? "linear-gradient(90deg,#ef4444,#f87171)" : "linear-gradient(90deg,#1A8A3C,#2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
+              </div>
+            )}
+          </div>
+
+          {/* Social Platforms */}
+          <div style={{ minWidth: 110 }}>
+            <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>PLATFORMS</div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
+              {activePlan === "free"
+                ? <><span style={{ color: "rgba(255,255,255,0.55)", fontSize: 16 }}>up to</span> {usageLimits.platforms}</>
+                : <span style={{ color: "#2ECC71" }}>All 10</span>
+              }
+            </div>
+          </div>
+
+          {/* AI Visuals */}
+          <div style={{ minWidth: 110 }}>
+            <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>AI VISUALS</div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
+              {activePlan === "free"
+                ? <span style={{ color: "rgba(255,59,48,0.8)", fontSize: 16, fontWeight: 700 }}>Locked</span>
+                : <span style={{ color: "#2ECC71" }}>Image + Video</span>
+              }
+            </div>
+          </div>
+
+          {/* Team Members */}
+          <div style={{ minWidth: 110 }}>
+            <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>TEAM MEMBERS</div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
+              {activePlan === "agency"
+                ? <span style={{ color: "#4DFF8F" }}>Up to 5</span>
+                : <span style={{ color: "rgba(255,59,48,0.8)", fontSize: 16, fontWeight: 700 }}>Locked</span>
+              }
+            </div>
+          </div>
+
+          {/* Analytics */}
+          <div style={{ minWidth: 110 }}>
+            <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>ANALYTICS</div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
+              {activePlan === "free"
+                ? <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: 700 }}>Basic</span>
+                : <span style={{ color: "#2ECC71" }}>Full Suite</span>
+              }
+            </div>
+          </div>
+
         </div>
         {activePlan === "free" && (
           <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: 16 }}>
-            Resets at the start of each billing period. Upgrade for unlimited access.
+            Campaign limit resets at the start of each billing period. Upgrade for unlimited access.
           </div>
         )}
       </div>
@@ -824,9 +1135,10 @@ function AuthScreen({ onAuth }) {
         {/* ══════════ ANALYTICS ══════════ */}
         {screen === "analytics" && (() => {
           const posts            = analytics?.posts || [];
+          const isBasic          = analytics?.isBasic ?? (userPlan === "free");
           const totalImpressions = posts.reduce((s, p) => s + p.impressions, 0);
           const totalEngagements = posts.reduce((s, p) => s + p.engagements, 0);
-          const totalClicks      = posts.reduce((s, p) => s + p.clicks, 0);
+          const totalClicks      = posts.reduce((s, p) => s + (p.clicks || 0), 0);
           const avgEngRate       = totalImpressions > 0
             ? ((totalEngagements / totalImpressions) * 100).toFixed(1)
             : null;
@@ -835,18 +1147,98 @@ function AuthScreen({ onAuth }) {
           const maxTrendVal      = Math.max(...trend.map(t => t.engagements), 1);
           const topPost          = analytics?.topPost;
 
-          const StatCard = ({ label, value, sub, accent }) => (
-            <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 14, padding: "20px 22px", flex: 1, minWidth: 130 }}>
+          const StatCard = ({ label, value, sub, accent, locked }) => (
+            <div style={{ background: locked ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.025)", border: `1px solid ${locked ? "rgba(255,255,255,0.05)" : "rgba(46,204,113,0.1)"}`, borderRadius: 14, padding: "20px 22px", flex: 1, minWidth: 130, opacity: locked ? 0.5 : 1, position: "relative" }}>
               <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2.2, textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
-              <div style={{ color: accent || "#fff", fontSize: 28, fontWeight: 800, letterSpacing: -1, lineHeight: 1, marginBottom: 5 }}>{value}</div>
-              {sub && <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11.5 }}>{sub}</div>}
+              {locked
+                ? <div style={{ fontSize: 22 }}>🔒</div>
+                : <div style={{ color: accent || "#fff", fontSize: 28, fontWeight: 800, letterSpacing: -1, lineHeight: 1, marginBottom: 5 }}>{value}</div>
+              }
+              {sub && !locked && <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11.5 }}>{sub}</div>}
             </div>
           );
+
+          // Agency white-label HTML report export
+          const exportReport = () => {
+            const generated = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+            const platRows  = platformEntries
+              .sort(([,a],[,b]) => b.impressions - a.impressions)
+              .map(([p, m]) => {
+                const er = m.impressions > 0 ? ((m.engagements / m.impressions) * 100).toFixed(1) : "0.0";
+                return `<tr><td><strong>${p.charAt(0).toUpperCase() + p.slice(1)}</strong></td><td>${m.posts}</td><td>${m.impressions.toLocaleString()}</td><td>${m.engagements.toLocaleString()}</td><td>${er}%</td><td>${(m.clicks||0).toLocaleString()}</td></tr>`;
+              }).join("");
+            const postRows = [...posts].sort((a,b) => b.engagements - a.engagements).map(p => `
+              <tr>
+                <td><strong>${p.adTitle || "Post"}</strong></td>
+                <td>${p.scheduleDate ? new Date(p.scheduleDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
+                <td>${p.impressions.toLocaleString()}</td>
+                <td>${p.engagements.toLocaleString()}</td>
+                <td>${p.engagementRate}%</td>
+                <td>${(p.clicks||0).toLocaleString()}</td>
+              </tr>`).join("");
+
+            const html = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"/>
+<title>Campaign Performance Report — ${generated}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans','Segoe UI',Arial,sans-serif;background:#fff;color:#111;padding:48px 56px;max-width:920px;margin:0 auto}
+  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #2ECC71;padding-bottom:20px;margin-bottom:32px}
+  .logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}.logo span{color:#2ECC71}
+  .meta{text-align:right;font-size:12px;color:#888;line-height:1.6}
+  h2{font-size:11px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:#2ECC71;margin:28px 0 12px}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+  .stat{background:#f7fdf9;border:1px solid #d3f5e0;border-radius:10px;padding:16px 18px}
+  .stat .val{font-size:26px;font-weight:800;color:#111;letter-spacing:-1px}
+  .stat .lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+  th{background:#f0fdf4;color:#16a34a;font-weight:800;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:2px solid #d3f5e0}
+  td{padding:11px 14px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#ccc;display:flex;justify-content:space-between}
+  @media print{body{padding:32px}}
+</style></head>
+<body>
+  <div class="header">
+    <div class="logo">Mercavex <span>Analytics</span></div>
+    <div class="meta">Generated: ${generated}<br/>Powered by OphidianAI Agency</div>
+  </div>
+  <h2>Overview</h2>
+  <div class="stat-grid">
+    <div class="stat"><div class="val">${analytics.totalPosts}</div><div class="lbl">Posts Tracked</div></div>
+    <div class="stat"><div class="val">${totalImpressions.toLocaleString()}</div><div class="lbl">Total Impressions</div></div>
+    <div class="stat"><div class="val">${totalEngagements.toLocaleString()}</div><div class="lbl">Engagements</div></div>
+    <div class="stat"><div class="val">${totalClicks.toLocaleString()}</div><div class="lbl">Clicks</div></div>
+  </div>
+  <div class="stat-grid" style="grid-template-columns:repeat(2,1fr);max-width:300px">
+    <div class="stat"><div class="val">${avgEngRate ? avgEngRate + "%" : "—"}</div><div class="lbl">Avg Eng. Rate</div></div>
+    <div class="stat"><div class="val">${platformEntries.length}</div><div class="lbl">Platforms</div></div>
+  </div>
+  ${topPost ? `<h2>Top Performing Post</h2>
+  <table><tr><th>Post</th><th>Impressions</th><th>Engagements</th><th>Eng. Rate</th><th>Clicks</th></tr>
+  <tr><td><strong>${topPost.adTitle || "Post"}</strong></td><td>${topPost.impressions.toLocaleString()}</td><td>${topPost.engagements.toLocaleString()}</td><td>${topPost.engagementRate}%</td><td>${(topPost.clicks||0).toLocaleString()}</td></tr>
+  </table>` : ""}
+  <h2>Platform Breakdown</h2>
+  <table><tr><th>Platform</th><th>Posts</th><th>Impressions</th><th>Engagements</th><th>Eng. Rate</th><th>Clicks</th></tr>${platRows}</table>
+  <h2>All Posts</h2>
+  <table><tr><th>Post</th><th>Date</th><th>Impressions</th><th>Engagements</th><th>Rate</th><th>Clicks</th></tr>${postRows}</table>
+  <div class="footer"><span>Mercavex by OphidianAI — Confidential Client Report</span><span>${generated}</span></div>
+</body></html>`;
+
+            const blob = new Blob([html], { type: "text/html" });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement("a");
+            a.href     = url;
+            a.download = `mercavex-report-${new Date().toISOString().split("T")[0]}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+          };
 
           return (
             <div className="anim">
               {/* Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 32, flexWrap: "wrap", gap: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
                 <div>
                   <div style={S.h1}>Performance<br /><span style={{ color: "#2ECC71" }}>Analytics.</span></div>
                   <div style={S.sub}>
@@ -857,10 +1249,34 @@ function AuthScreen({ onAuth }) {
                       : `Tracking ${analytics.totalPosts} post${analytics.totalPosts !== 1 ? "s" : ""} across ${platformEntries.length} platform${platformEntries.length !== 1 ? "s" : ""}.`}
                   </div>
                 </div>
-                <button style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px" }} onClick={loadAnalytics} disabled={analyticsLoading}>
-                  {analyticsLoading ? "Refreshing\u2026" : "\u21bb Refresh"}
-                </button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  {planWhitelabelEnabled && analytics && analytics.totalPosts > 0 && (
+                    <button onClick={exportReport} style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px", color: "#4DFF8F", borderColor: "rgba(77,255,143,0.3)", display: "flex", alignItems: "center", gap: 7 }}>
+                      ⬇ Export Report <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, background: "rgba(77,255,143,0.12)", padding: "2px 6px", borderRadius: 4 }}>WHITE-LABEL</span>
+                    </button>
+                  )}
+                  {planExportEnabled && !planWhitelabelEnabled && analytics && analytics.totalPosts > 0 && (
+                    <button onClick={exportReport} style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px", display: "flex", alignItems: "center", gap: 7 }}>
+                      ⬇ Export Report
+                    </button>
+                  )}
+                  <button style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px" }} onClick={loadAnalytics} disabled={analyticsLoading}>
+                    {analyticsLoading ? "Refreshing\u2026" : "\u21bb Refresh"}
+                  </button>
+                </div>
               </div>
+
+              {/* Free plan notice */}
+              {isBasic && analytics && analytics.totalPosts > 0 && (
+                <div style={{ background: "rgba(46,204,113,0.04)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 12, padding: "14px 18px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 }}>
+                    <strong style={{ color: "#2ECC71" }}>Basic Analytics</strong> — showing your last 30 days, up to 5 posts. Clicks, trend charts, and full history require Pro.
+                  </div>
+                  <button onClick={() => setScreen("billing")} style={{ background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                    Upgrade →
+                  </button>
+                </div>
+              )}
 
               {/* Loading */}
               {analyticsLoading && (
@@ -893,7 +1309,7 @@ function AuthScreen({ onAuth }) {
                     <StatCard label="Impressions"   value={totalImpressions.toLocaleString()} sub="across all posts"        accent="#fff"    />
                     <StatCard label="Engagements"   value={totalEngagements.toLocaleString()} sub="likes, comments, shares" accent="#2ECC71" />
                     <StatCard label="Avg Eng. Rate" value={avgEngRate ? `${avgEngRate}%` : "\u2014"}  sub="engagements / impressions" accent="#86EFAC" />
-                    <StatCard label="Clicks"        value={totalClicks.toLocaleString()}      sub="link clicks"              accent="#93C5FD" />
+                    <StatCard label="Clicks"        value={totalClicks.toLocaleString()}      sub="link clicks"              accent="#93C5FD" locked={isBasic} />
                   </div>
 
                   {/* Top performer */}
@@ -914,7 +1330,7 @@ function AuthScreen({ onAuth }) {
                           { label: "Impressions", val: topPost.impressions.toLocaleString() },
                           { label: "Engagements", val: topPost.engagements.toLocaleString() },
                           { label: "Eng. Rate",   val: `${topPost.engagementRate}%`         },
-                          { label: "Clicks",      val: topPost.clicks.toLocaleString()      },
+                          ...(!isBasic ? [{ label: "Clicks", val: (topPost.clicks || 0).toLocaleString() }] : []),
                         ].map(({ label, val }) => (
                           <div key={label}>
                             <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
@@ -946,12 +1362,12 @@ function AuthScreen({ onAuth }) {
                                     <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{metrics.posts} post{metrics.posts !== 1 ? "s" : ""}</div>
                                   </div>
                                 </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: isBasic ? "repeat(3,1fr)" : "repeat(4,1fr)", gap: 10 }}>
                                   {[
                                     { label: "Impressions", val: metrics.impressions.toLocaleString(), color: "#fff"    },
                                     { label: "Engagements", val: metrics.engagements.toLocaleString(), color: "#2ECC71" },
                                     { label: "Eng. Rate",   val: `${engRate}%`,                        color: "#86EFAC" },
-                                    { label: "Clicks",      val: metrics.clicks.toLocaleString(),      color: "#93C5FD" },
+                                    ...(!isBasic ? [{ label: "Clicks", val: (metrics.clicks || 0).toLocaleString(), color: "#93C5FD" }] : []),
                                   ].map(({ label, val, color }) => (
                                     <div key={label} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "10px 12px" }}>
                                       <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
@@ -966,8 +1382,8 @@ function AuthScreen({ onAuth }) {
                     </div>
                   )}
 
-                  {/* Engagement trend — SVG bar chart */}
-                  {trend.length > 1 && (
+                  {/* Engagement trend — Pro/Agency only */}
+                  {!isBasic && trend.length > 1 && (
                     <div>
                       <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>Engagement Trend</div>
                       <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 14, padding: "22px 18px" }}>
@@ -1003,9 +1419,23 @@ function AuthScreen({ onAuth }) {
                     </div>
                   )}
 
+                  {/* Trend upgrade prompt for Free */}
+                  {isBasic && (
+                    <div style={{ background: "rgba(255,255,255,0.02)", border: "1.5px dashed rgba(46,204,113,0.2)", borderRadius: 14, padding: "28px 24px", textAlign: "center" }}>
+                      <div style={{ fontSize: 28, marginBottom: 10 }}>📈</div>
+                      <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Engagement Trend — Pro Feature</div>
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginBottom: 18 }}>See weekly engagement trends, full historical data, and click tracking.</div>
+                      <button onClick={() => setScreen("billing")} style={{ background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", border: "none", borderRadius: 9, padding: "10px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                        Upgrade to Pro →
+                      </button>
+                    </div>
+                  )}
+
                   {/* All posts table */}
                   <div>
-                    <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>All Posts</div>
+                    <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>
+                      All Posts {isBasic && <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, letterSpacing: 1, fontWeight: 600 }}>(last 30 days · 5 max)</span>}
+                    </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {[...posts].sort((a, b) => b.engagements - a.engagements).map((post, i) => (
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: "13px 16px", flexWrap: "wrap" }}>
@@ -1022,7 +1452,7 @@ function AuthScreen({ onAuth }) {
                               { label: "Impr.",  val: post.impressions.toLocaleString(), color: "#fff"    },
                               { label: "Eng.",   val: post.engagements.toLocaleString(), color: "#2ECC71" },
                               { label: "Rate",   val: `${post.engagementRate}%`,         color: "#86EFAC" },
-                              { label: "Clicks", val: post.clicks.toLocaleString(),      color: "#93C5FD" },
+                              ...(!isBasic ? [{ label: "Clicks", val: (post.clicks || 0).toLocaleString(), color: "#93C5FD" }] : []),
                             ].map(({ label, val, color }) => (
                               <div key={label} style={{ textAlign: "right" }}>
                                 <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" }}>{label}</div>
@@ -1181,6 +1611,10 @@ export default function App() {
   const [planVideoEnabled, setPlanVideoEnabled] = useState(false);
   const [planCampaignLimit, setPlanCampaignLimit] = useState(3);
   const [planPlatformLimit, setPlanPlatformLimit] = useState(2);
+  const [planAnalyticsLevel, setPlanAnalyticsLevel] = useState("basic");
+  const [planTeamEnabled, setPlanTeamEnabled]   = useState(false);
+  const [planExportEnabled, setPlanExportEnabled] = useState(false);
+  const [planWhitelabelEnabled, setPlanWhitelabelEnabled] = useState(false);
 
   // ── Ayrshare ──────────────────────────────────
   const [ayrshareKey, setAyrshareKey] = useState("");
@@ -1279,6 +1713,10 @@ export default function App() {
         setPlanVideoEnabled(!!data.videoEnabled);
         setPlanCampaignLimit(data.campaignLimit || 3);
         setPlanPlatformLimit(data.platformLimit || 2);
+        setPlanAnalyticsLevel(data.analyticsLevel || "basic");
+        setPlanTeamEnabled(!!data.teamEnabled);
+        setPlanExportEnabled(!!data.exportEnabled);
+        setPlanWhitelabelEnabled(!!data.whitelabelEnabled);
       } catch (e) { /* silent — defaults to free */ }
     };
     fetchBillingStatus();
@@ -1289,13 +1727,16 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const billingStatus = params.get("billing");
     if (billingStatus === "success") {
-      // Clean URL and navigate to billing screen
       window.history.replaceState({}, "", window.location.pathname);
       setScreen("billing");
     } else if (billingStatus === "cancel" || billingStatus === "portal-return") {
       window.history.replaceState({}, "", window.location.pathname);
       setScreen("billing");
     }
+    // Listen for cross-component navigation events (e.g. from AccountScreen)
+    const onNav = (e) => setScreen(e.detail);
+    window.addEventListener("navigate", onNav);
+    return () => window.removeEventListener("navigate", onNav);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Poll video status for any ads currently processing ──
@@ -2695,7 +3136,7 @@ export default function App() {
 
         {/* ══════════ ACCOUNT ══════════ */}
         {screen === "account" && (
-          <AccountScreen user={user} session={session} onProfileUpdate={(name) => {
+          <AccountScreen user={user} session={session} userPlan={userPlan} onProfileUpdate={(name) => {
             // Optionally refresh user display
           }} />
         )}
