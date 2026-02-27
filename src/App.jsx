@@ -1622,7 +1622,8 @@ export default function App() {
   const [savedKeyLoading, setSavedKeyLoading]     = useState(false);
 
   // ── Campaign ──────────────────────────────────
-  // ── Campaign ── (screen persisted to URL hash for reload resilience)
+  // Persist navigable screens to URL hash — restores on page reload.
+  // Transient flow screens (generating, publishing, review, done) are excluded.
   const HASH_SCREENS = new Set(["input","connect","dashboard","analytics","account","billing","visuals"]);
   const getInitialScreen = () => {
     const hash = window.location.hash.replace("#", "");
@@ -1821,7 +1822,7 @@ export default function App() {
   // ── Logout ────────────────────────────────────
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.history.replaceState({}, "", window.location.pathname); // clear hash on logout
+    window.history.replaceState({}, "", window.location.pathname);
     setUser(null); setSession(null);
     setScreen("connect"); setAyrshareKey(""); setKeyInput("");
     setProfiles([]); setSelectedPlatforms([]);
@@ -1845,7 +1846,13 @@ export default function App() {
       setAyrshareKey(key);
       setProfiles(connected);
       setSelectedPlatforms(connected.map(p => p.platform));
-      setScreen("input");
+      // Only navigate to "input" if the user has no saved screen (fresh load / first connect).
+      const HASH_SCREENS_LOCAL = new Set(["input","connect","dashboard","analytics","account","billing","visuals"]);
+      const currentHash = window.location.hash.replace("#", "");
+      if (!HASH_SCREENS_LOCAL.has(currentHash) || currentHash === "connect") {
+        setScreenRaw("input");
+        window.history.replaceState({}, "", "#input");
+      }
     } catch (e) { setError(e.message); }
     setProfilesLoading(false);
   };
