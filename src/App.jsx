@@ -1653,6 +1653,7 @@ export default function App() {
   const [campaigns, setCampaigns]               = useState([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm]       = useState(null);
+  const [liveStatuses, setLiveStatuses]         = useState({});
 
   // ── Analytics ─────────────────────────────────
   const [analytics, setAnalytics]               = useState(null);
@@ -2167,6 +2168,20 @@ export default function App() {
       const resp = await fetch(`${BACKEND_URL}/campaigns`, { headers: authHeaders() });
       const data = await resp.json();
       setCampaigns(Array.isArray(data) ? data : []);
+
+      // Also fetch live post statuses from Ayrshare to update "queued" → "published"
+      if (ayrshareKey) {
+        try {
+          const histResp = await fetch(
+            `${BACKEND_URL}/social/history?key=${encodeURIComponent(ayrshareKey)}`,
+            { headers: authHeaders() }
+          );
+          const histData = await histResp.json();
+          if (histData.statusMap) {
+            setLiveStatuses(histData.statusMap);
+          }
+        } catch (e) { /* non-fatal — dashboard still works with stored statuses */ }
+      }
     } catch (e) { setCampaigns([]); }
     setCampaignsLoading(false);
   };
@@ -3055,10 +3070,23 @@ export default function App() {
             {!campaignsLoading && campaigns.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {campaigns.map((campaign, i) => {
-                  const log            = campaign.publish_log || [];
-                  const scheduledCount = log.filter(p => p.status === "scheduled").length;
-                  const partialCount   = log.filter(p => p.status === "partial").length;
-                  const errorCount     = log.filter(p => p.status === "error").length;
+                  const log = campaign.publish_log || [];
+
+                  // Resolve live status for each post entry
+                  const resolveStatus = (post) => {
+                    if (!post.ayrshareId || !liveStatuses[post.ayrshareId]) return post.status;
+                    const live = liveStatuses[post.ayrshareId].status;
+                    if (live === "success")  return "success";
+                    if (live === "partial")  return "partial";
+                    if (live === "error")    return "error";
+                    return post.status; // fallback to stored
+                  };
+
+                  const resolvedStatuses = log.map(resolveStatus);
+                  const publishedCount = resolvedStatuses.filter(s => s === "success").length;
+                  const queuedCount    = resolvedStatuses.filter(s => s === "scheduled").length;
+                  const partialCount   = resolvedStatuses.filter(s => s === "partial").length;
+                  const errorCount     = resolvedStatuses.filter(s => s === "error").length;
                   const schedInfo      = SCHEDULES.find(s => s.id === campaign.schedule_id);
                   const isPending      = deleteConfirm === campaign.id;
 
@@ -3113,9 +3141,19 @@ export default function App() {
                       {/* ── Post status rows ── */}
                       {log.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: 16 }}>
-                          {log.map((post, j) => (
+                          {log.map((post, j) => {
+                            const rs = resolvedStatuses[j] || post.status;
+                            const isPublished = rs === "success";
+                            const isQueued    = rs === "scheduled";
+                            const isPartial   = rs === "partial";
+                            const dotColor    = isPublished ? "#2ECC71" : isQueued ? "#60A5FA" : isPartial ? "#FCD34D" : "#FF3B30";
+                            const dotShadow   = isPublished ? "0 0 5px rgba(46,204,113,0.5)" : isQueued ? "0 0 5px rgba(96,165,250,0.4)" : isPartial ? "0 0 5px rgba(255,181,0,0.4)" : "none";
+                            const labelColor  = isPublished ? "#86EFAC" : isQueued ? "#93C5FD" : isPartial ? "#FCD34D" : "#FCA5A5";
+                            const labelText   = isPublished ? "✓ Published" : isQueued ? "◦ Queued" : isPartial ? "⚠ Partial" : "✕ Failed";
+
+                            return (
                             <div key={j} style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "8px 12px" }}>
-                              <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: post.status === "scheduled" ? "#2ECC71" : post.status === "partial" ? "#FCD34D" : "#FF3B30", boxShadow: post.status === "scheduled" ? "0 0 5px rgba(46,204,113,0.5)" : post.status === "partial" ? "0 0 5px rgba(255,181,0,0.4)" : "none" }} />
+                              <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: dotColor, boxShadow: dotShadow }} />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 12.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                   {post.adTitle || "Post"}
@@ -3128,18 +3166,27 @@ export default function App() {
                                   </div>
                                 )}
                               </div>
-                              <span style={{ fontSize: 11, fontWeight: 700, flexShrink: 0, color: post.status === "scheduled" ? "#86EFAC" : post.status === "partial" ? "#FCD34D" : "#FCA5A5" }}>
-                                {post.status === "scheduled" ? "✓ Queued" : post.status === "partial" ? "⚠ Partial" : "✕ Failed"}
+                              <span style={{ fontSize: 11, fontWeight: 700, flexShrink: 0, color: labelColor }}>
+                                {labelText}
                               </span>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
 
                       {/* ── Footer: stats + actions ── */}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.05)", gap: 10, flexWrap: "wrap" }}>
                         <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                          <span style={{ color: "#86EFAC", fontSize: 12, fontWeight: 700 }}>✓ {scheduledCount} queued</span>
+                          {publishedCount > 0 && (
+                            <span style={{ color: "#86EFAC", fontSize: 12, fontWeight: 700 }}>✓ {publishedCount} published</span>
+                          )}
+                          {queuedCount > 0 && (
+                            <span style={{ color: "#93C5FD", fontSize: 12, fontWeight: 700 }}>◦ {queuedCount} queued</span>
+                          )}
+                          {publishedCount === 0 && queuedCount === 0 && errorCount === 0 && partialCount === 0 && (
+                            <span style={{ color: "rgba(255,255,255,0.28)", fontSize: 12, fontWeight: 700 }}>No posts</span>
+                          )}
                           {partialCount > 0 && (
                             <span style={{ color: "#FCD34D", fontSize: 12, fontWeight: 700 }}>⚠ {partialCount} partial</span>
                           )}
