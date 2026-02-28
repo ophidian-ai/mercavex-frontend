@@ -1133,341 +1133,6 @@ function AuthScreen({ onAuth }) {
 
       <div style={{ marginTop: 28, color: "rgba(255,255,255,0.15)", fontSize: 12, textAlign: "center" }}>
         The Weaving of Commerce™ · OphidianAI
-
-        {/* ══════════ ANALYTICS ══════════ */}
-        {screen === "analytics" && (() => {
-          const posts            = analytics?.posts || [];
-          const isBasic          = analytics?.isBasic ?? (userPlan === "free");
-          const totalImpressions = posts.reduce((s, p) => s + p.impressions, 0);
-          const totalEngagements = posts.reduce((s, p) => s + p.engagements, 0);
-          const totalClicks      = posts.reduce((s, p) => s + (p.clicks || 0), 0);
-          const avgEngRate       = totalImpressions > 0
-            ? ((totalEngagements / totalImpressions) * 100).toFixed(1)
-            : null;
-          const platformEntries  = Object.entries(analytics?.platforms || {});
-          const trend            = analytics?.trend || [];
-          const maxTrendVal      = Math.max(...trend.map(t => t.engagements), 1);
-          const topPost          = analytics?.topPost;
-
-          const StatCard = ({ label, value, sub, accent, locked }) => (
-            <div style={{ background: locked ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.025)", border: `1px solid ${locked ? "rgba(255,255,255,0.05)" : "rgba(46,204,113,0.1)"}`, borderRadius: 14, padding: "20px 22px", flex: 1, minWidth: 130, opacity: locked ? 0.5 : 1, position: "relative" }}>
-              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2.2, textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
-              {locked
-                ? <div style={{ fontSize: 22 }}>🔒</div>
-                : <div style={{ color: accent || "#fff", fontSize: 28, fontWeight: 800, letterSpacing: -1, lineHeight: 1, marginBottom: 5 }}>{value}</div>
-              }
-              {sub && !locked && <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11.5 }}>{sub}</div>}
-            </div>
-          );
-
-          // Agency white-label HTML report export
-          const exportReport = () => {
-            const generated = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-            const platRows  = platformEntries
-              .sort(([,a],[,b]) => b.impressions - a.impressions)
-              .map(([p, m]) => {
-                const er = m.impressions > 0 ? ((m.engagements / m.impressions) * 100).toFixed(1) : "0.0";
-                return `<tr><td><strong>${p.charAt(0).toUpperCase() + p.slice(1)}</strong></td><td>${m.posts}</td><td>${m.impressions.toLocaleString()}</td><td>${m.engagements.toLocaleString()}</td><td>${er}%</td><td>${(m.clicks||0).toLocaleString()}</td></tr>`;
-              }).join("");
-            const postRows = [...posts].sort((a,b) => b.engagements - a.engagements).map(p => `
-              <tr>
-                <td><strong>${p.adTitle || "Post"}</strong></td>
-                <td>${p.scheduleDate ? new Date(p.scheduleDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
-                <td>${p.impressions.toLocaleString()}</td>
-                <td>${p.engagements.toLocaleString()}</td>
-                <td>${p.engagementRate}%</td>
-                <td>${(p.clicks||0).toLocaleString()}</td>
-              </tr>`).join("");
-
-            const html = `<!DOCTYPE html>
-<html lang="en"><head>
-<meta charset="UTF-8"/>
-<title>Campaign Performance Report — ${generated}</title>
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'DM Sans','Segoe UI',Arial,sans-serif;background:#fff;color:#111;padding:48px 56px;max-width:920px;margin:0 auto}
-  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #2ECC71;padding-bottom:20px;margin-bottom:32px}
-  .logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}.logo span{color:#2ECC71}
-  .meta{text-align:right;font-size:12px;color:#888;line-height:1.6}
-  h2{font-size:11px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:#2ECC71;margin:28px 0 12px}
-  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
-  .stat{background:#f7fdf9;border:1px solid #d3f5e0;border-radius:10px;padding:16px 18px}
-  .stat .val{font-size:26px;font-weight:800;color:#111;letter-spacing:-1px}
-  .stat .lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:1px}
-  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
-  th{background:#f0fdf4;color:#16a34a;font-weight:800;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:2px solid #d3f5e0}
-  td{padding:11px 14px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
-  tr:last-child td{border-bottom:none}
-  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#ccc;display:flex;justify-content:space-between}
-  @media print{body{padding:32px}}
-</style></head>
-<body>
-  <div class="header">
-    <div class="logo">Mercavex <span>Analytics</span></div>
-    <div class="meta">Generated: ${generated}<br/>Powered by OphidianAI Agency</div>
-  </div>
-  <h2>Overview</h2>
-  <div class="stat-grid">
-    <div class="stat"><div class="val">${analytics.totalPosts}</div><div class="lbl">Posts Tracked</div></div>
-    <div class="stat"><div class="val">${totalImpressions.toLocaleString()}</div><div class="lbl">Total Impressions</div></div>
-    <div class="stat"><div class="val">${totalEngagements.toLocaleString()}</div><div class="lbl">Engagements</div></div>
-    <div class="stat"><div class="val">${totalClicks.toLocaleString()}</div><div class="lbl">Clicks</div></div>
-  </div>
-  <div class="stat-grid" style="grid-template-columns:repeat(2,1fr);max-width:300px">
-    <div class="stat"><div class="val">${avgEngRate ? avgEngRate + "%" : "—"}</div><div class="lbl">Avg Eng. Rate</div></div>
-    <div class="stat"><div class="val">${platformEntries.length}</div><div class="lbl">Platforms</div></div>
-  </div>
-  ${topPost ? `<h2>Top Performing Post</h2>
-  <table><tr><th>Post</th><th>Impressions</th><th>Engagements</th><th>Eng. Rate</th><th>Clicks</th></tr>
-  <tr><td><strong>${topPost.adTitle || "Post"}</strong></td><td>${topPost.impressions.toLocaleString()}</td><td>${topPost.engagements.toLocaleString()}</td><td>${topPost.engagementRate}%</td><td>${(topPost.clicks||0).toLocaleString()}</td></tr>
-  </table>` : ""}
-  <h2>Platform Breakdown</h2>
-  <table><tr><th>Platform</th><th>Posts</th><th>Impressions</th><th>Engagements</th><th>Eng. Rate</th><th>Clicks</th></tr>${platRows}</table>
-  <h2>All Posts</h2>
-  <table><tr><th>Post</th><th>Date</th><th>Impressions</th><th>Engagements</th><th>Rate</th><th>Clicks</th></tr>${postRows}</table>
-  <div class="footer"><span>Mercavex by OphidianAI — Confidential Client Report</span><span>${generated}</span></div>
-</body></html>`;
-
-            const blob = new Blob([html], { type: "text/html" });
-            const url  = URL.createObjectURL(blob);
-            const a    = document.createElement("a");
-            a.href     = url;
-            a.download = `mercavex-report-${new Date().toISOString().split("T")[0]}.html`;
-            a.click();
-            URL.revokeObjectURL(url);
-          };
-
-          return (
-            <div className="anim">
-              {/* Header */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
-                <div>
-                  <div style={S.h1}>Performance<br /><span style={{ color: "#2ECC71" }}>Analytics.</span></div>
-                  <div style={S.sub}>
-                    {analyticsLoading
-                      ? "Fetching data\u2026"
-                      : !analytics || analytics.totalPosts === 0
-                      ? "Analytics appear once your scheduled posts go live."
-                      : `Tracking ${analytics.totalPosts} post${analytics.totalPosts !== 1 ? "s" : ""} across ${platformEntries.length} platform${platformEntries.length !== 1 ? "s" : ""}.`}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: 10 }}>
-                  {planWhitelabelEnabled && analytics && analytics.totalPosts > 0 && (
-                    <button onClick={exportReport} style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px", color: "#4DFF8F", borderColor: "rgba(77,255,143,0.3)", display: "flex", alignItems: "center", gap: 7 }}>
-                      ⬇ Export Report <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, background: "rgba(77,255,143,0.12)", padding: "2px 6px", borderRadius: 4 }}>WHITE-LABEL</span>
-                    </button>
-                  )}
-                  <button style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px" }} onClick={loadAnalytics} disabled={analyticsLoading}>
-                    {analyticsLoading ? "Refreshing\u2026" : "\u21bb Refresh"}
-                  </button>
-                </div>
-              </div>
-
-              {/* Free plan notice */}
-              {isBasic && analytics && analytics.totalPosts > 0 && (
-                <div style={{ background: "rgba(46,204,113,0.04)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 12, padding: "14px 18px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 }}>
-                    <strong style={{ color: "#2ECC71" }}>Basic Analytics</strong> — showing your last 30 days, up to 5 posts. Clicks, trend charts, and full history require Pro.
-                  </div>
-                  <button onClick={() => setScreen("billing")} style={{ background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-                    Upgrade →
-                  </button>
-                </div>
-              )}
-
-              {/* Loading */}
-              {analyticsLoading && (
-                <div style={{ textAlign: "center", padding: "70px 0", color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
-                  Fetching analytics<Dots />
-                </div>
-              )}
-
-              {/* Empty state */}
-              {!analyticsLoading && (!analytics || analytics.totalPosts === 0) && (
-                <div style={{ textAlign: "center", padding: "70px 30px", border: "1.5px dashed rgba(46,204,113,0.13)", borderRadius: 20, background: "rgba(255,255,255,0.01)" }}>
-                  <div style={{ fontSize: 46, marginBottom: 16 }}>&#128202;</div>
-                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No analytics yet</div>
-                  <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 13.5, lineHeight: 1.7, marginBottom: 26 }}>
-                    Metrics appear once your scheduled posts go live.<br />
-                    Posts need to be published before Ayrshare can report data.
-                  </div>
-                  <button style={S.btn} onClick={() => setScreen(ayrshareKey ? "input" : "connect")}>
-                    Create a Campaign \u2192
-                  </button>
-                </div>
-              )}
-
-              {/* Data */}
-              {!analyticsLoading && analytics && analytics.totalPosts > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-
-                  {/* Stat cards row */}
-                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    <StatCard label="Impressions"   value={totalImpressions.toLocaleString()} sub="across all posts"        accent="#fff"    />
-                    <StatCard label="Engagements"   value={totalEngagements.toLocaleString()} sub="likes, comments, shares" accent="#2ECC71" />
-                    <StatCard label="Avg Eng. Rate" value={avgEngRate ? `${avgEngRate}%` : "\u2014"}  sub="engagements / impressions" accent="#86EFAC" />
-                    <StatCard label="Clicks"        value={totalClicks.toLocaleString()}      sub="link clicks"              accent="#93C5FD" locked={isBasic} />
-                  </div>
-
-                  {/* Top performer */}
-                  {topPost && (
-                    <div style={{ background: "rgba(46,204,113,0.05)", border: "1.5px solid rgba(46,204,113,0.22)", borderRadius: 16, padding: "22px 24px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
-                        <span style={{ fontSize: 18 }}>&#127942;</span>
-                        <span style={{ color: "#2ECC71", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase" }}>Top Performing Post</span>
-                      </div>
-                      <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, lineHeight: 1.4, marginBottom: 6 }}>{topPost.adTitle}</div>
-                      {topPost.businessDesc && (
-                        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12.5, marginBottom: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {topPost.businessDesc.substring(0, 72)}{topPost.businessDesc.length > 72 ? "\u2026" : ""}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 24 }}>
-                        {[
-                          { label: "Impressions", val: topPost.impressions.toLocaleString() },
-                          { label: "Engagements", val: topPost.engagements.toLocaleString() },
-                          { label: "Eng. Rate",   val: `${topPost.engagementRate}%`         },
-                          ...(!isBasic ? [{ label: "Clicks", val: (topPost.clicks || 0).toLocaleString() }] : []),
-                        ].map(({ label, val }) => (
-                          <div key={label}>
-                            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
-                            <div style={{ color: "#2ECC71", fontSize: 22, fontWeight: 800 }}>{val}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Platform breakdown */}
-                  {platformEntries.length > 0 && (
-                    <div>
-                      <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>Platform Breakdown</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {platformEntries
-                          .sort(([, a], [, b]) => b.impressions - a.impressions)
-                          .map(([platform, metrics]) => {
-                            const meta    = PLATFORM_META[platform] || { icon: "&#128241;", name: platform };
-                            const engRate = metrics.impressions > 0
-                              ? ((metrics.engagements / metrics.impressions) * 100).toFixed(1)
-                              : "0.0";
-                            return (
-                              <div key={platform} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 13, padding: "16px 18px" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                                  <span style={{ fontSize: 20 }}>{meta.icon}</span>
-                                  <div>
-                                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{meta.name}</div>
-                                    <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{metrics.posts} post{metrics.posts !== 1 ? "s" : ""}</div>
-                                  </div>
-                                </div>
-                                <div style={{ display: "grid", gridTemplateColumns: isBasic ? "repeat(3,1fr)" : "repeat(4,1fr)", gap: 10 }}>
-                                  {[
-                                    { label: "Impressions", val: metrics.impressions.toLocaleString(), color: "#fff"    },
-                                    { label: "Engagements", val: metrics.engagements.toLocaleString(), color: "#2ECC71" },
-                                    { label: "Eng. Rate",   val: `${engRate}%`,                        color: "#86EFAC" },
-                                    ...(!isBasic ? [{ label: "Clicks", val: (metrics.clicks || 0).toLocaleString(), color: "#93C5FD" }] : []),
-                                  ].map(({ label, val, color }) => (
-                                    <div key={label} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "10px 12px" }}>
-                                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
-                                      <div style={{ color, fontSize: 17, fontWeight: 800 }}>{val}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Engagement trend — Pro/Agency only */}
-                  {!isBasic && trend.length > 1 && (
-                    <div>
-                      <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>Engagement Trend</div>
-                      <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 14, padding: "22px 18px" }}>
-                        <div style={{ overflowX: "auto" }}>
-                          <svg width={Math.max(trend.length * 60, 320)} height={150} style={{ display: "block", overflow: "visible" }}>
-                            <defs>
-                              <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%"   stopColor="#2ECC71" stopOpacity="1"   />
-                                <stop offset="100%" stopColor="#1A8A3C" stopOpacity="0.55" />
-                              </linearGradient>
-                            </defs>
-                            {trend.map((t, i) => {
-                              const barH  = Math.max(Math.round((t.engagements / maxTrendVal) * 96), 3);
-                              const x     = i * 60 + 14;
-                              const y     = 106 - barH;
-                              const lbl   = new Date(t.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                              return (
-                                <g key={t.date}>
-                                  <rect x={x} y={y} width={36} height={barH} rx={5} fill="url(#barGrad)" opacity={0.9} />
-                                  <text x={x + 18} y={122} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={9} fontFamily="DM Sans,sans-serif">{lbl}</text>
-                                  {t.engagements > 0 && (
-                                    <text x={x + 18} y={y - 5} textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize={9.5} fontFamily="DM Sans,sans-serif">
-                                      {t.engagements.toLocaleString()}
-                                    </text>
-                                  )}
-                                </g>
-                              );
-                            })}
-                          </svg>
-                        </div>
-                        <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 11, marginTop: 4, textAlign: "right" }}>Weekly engagements</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Trend upgrade prompt for Free */}
-                  {isBasic && (
-                    <div style={{ background: "rgba(255,255,255,0.02)", border: "1.5px dashed rgba(46,204,113,0.2)", borderRadius: 14, padding: "28px 24px", textAlign: "center" }}>
-                      <div style={{ fontSize: 28, marginBottom: 10 }}>📈</div>
-                      <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Engagement Trend — Pro Feature</div>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginBottom: 18 }}>See weekly engagement trends, full historical data, and click tracking.</div>
-                      <button onClick={() => setScreen("billing")} style={{ background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", border: "none", borderRadius: 9, padding: "10px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
-                        Upgrade to Pro →
-                      </button>
-                    </div>
-                  )}
-
-                  {/* All posts table */}
-                  <div>
-                    <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>
-                      All Posts {isBasic && <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, letterSpacing: 1, fontWeight: 600 }}>(last 30 days · 5 max)</span>}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {[...posts].sort((a, b) => b.engagements - a.engagements).map((post, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: "13px 16px", flexWrap: "wrap" }}>
-                          <div style={{ flex: 1, minWidth: 160 }}>
-                            <div style={{ color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.adTitle || "Post"}</div>
-                            {post.scheduleDate && (
-                              <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 11, marginTop: 2 }}>
-                                {new Date(post.scheduleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: "flex", gap: 20, flexShrink: 0 }}>
-                            {[
-                              { label: "Impr.",  val: post.impressions.toLocaleString(), color: "#fff"    },
-                              { label: "Eng.",   val: post.engagements.toLocaleString(), color: "#2ECC71" },
-                              { label: "Rate",   val: `${post.engagementRate}%`,         color: "#86EFAC" },
-                              ...(!isBasic ? [{ label: "Clicks", val: (post.clicks || 0).toLocaleString(), color: "#93C5FD" }] : []),
-                            ].map(({ label, val, color }) => (
-                              <div key={label} style={{ textAlign: "right" }}>
-                                <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" }}>{label}</div>
-                                <div style={{ color, fontSize: 14, fontWeight: 700 }}>{val}</div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
       </div>
     </div>
   );
@@ -3233,6 +2898,324 @@ export default function App() {
             )}
           </div>
         )}
+
+        {/* ══════════ ANALYTICS ══════════ */}
+        {screen === "analytics" && (() => {
+          const posts            = analytics?.posts || [];
+          const isBasic          = analytics?.isBasic ?? (userPlan === "free");
+          const totalImpressions = posts.reduce((s, p) => s + p.impressions, 0);
+          const totalEngagements = posts.reduce((s, p) => s + p.engagements, 0);
+          const totalClicks      = posts.reduce((s, p) => s + (p.clicks || 0), 0);
+          const avgEngRate       = totalImpressions > 0
+            ? ((totalEngagements / totalImpressions) * 100).toFixed(1)
+            : null;
+          const platformEntries  = Object.entries(analytics?.platforms || {});
+          const trend            = analytics?.trend || [];
+          const maxTrendVal      = Math.max(...trend.map(t => t.engagements), 1);
+          const topPost          = analytics?.topPost;
+
+          const StatCard = ({ label, value, sub, accent, locked }) => (
+            <div style={{ background: locked ? "rgba(255,255,255,0.01)" : "rgba(255,255,255,0.025)", border: `1px solid ${locked ? "rgba(255,255,255,0.05)" : "rgba(46,204,113,0.1)"}`, borderRadius: 14, padding: "20px 22px", flex: 1, minWidth: 130, opacity: locked ? 0.5 : 1, position: "relative" }}>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2.2, textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
+              {locked
+                ? <div style={{ fontSize: 22 }}>🔒</div>
+                : <div style={{ color: accent || "#fff", fontSize: 28, fontWeight: 800, letterSpacing: -1, lineHeight: 1, marginBottom: 5 }}>{value}</div>
+              }
+              {sub && !locked && <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11.5 }}>{sub}</div>}
+            </div>
+          );
+
+          // Agency white-label HTML report export
+          const exportReport = () => {
+            const generated = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+            const platRows  = platformEntries
+              .sort(([,a],[,b]) => b.impressions - a.impressions)
+              .map(([p, m]) => {
+                const er = m.impressions > 0 ? ((m.engagements / m.impressions) * 100).toFixed(1) : "0.0";
+                return `<tr><td><strong>${p.charAt(0).toUpperCase() + p.slice(1)}</strong></td><td>${m.posts}</td><td>${m.impressions.toLocaleString()}</td><td>${m.engagements.toLocaleString()}</td><td>${er}%</td><td>${(m.clicks||0).toLocaleString()}</td></tr>`;
+              }).join("");
+            const postRows = [...posts].sort((a,b) => b.engagements - a.engagements).map(p => `
+              <tr>
+                <td><strong>${p.adTitle || "Post"}</strong></td>
+                <td>${p.scheduleDate ? new Date(p.scheduleDate).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
+                <td>${p.impressions.toLocaleString()}</td>
+                <td>${p.engagements.toLocaleString()}</td>
+                <td>${p.engagementRate}%</td>
+                <td>${(p.clicks||0).toLocaleString()}</td>
+              </tr>`).join("");
+
+            const html = `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"/>
+<title>Campaign Performance Report — ${generated}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans','Segoe UI',Arial,sans-serif;background:#fff;color:#111;padding:48px 56px;max-width:920px;margin:0 auto}
+  .header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #2ECC71;padding-bottom:20px;margin-bottom:32px}
+  .logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}.logo span{color:#2ECC71}
+  .meta{text-align:right;font-size:12px;color:#888;line-height:1.6}
+  h2{font-size:11px;font-weight:800;letter-spacing:2.5px;text-transform:uppercase;color:#2ECC71;margin:28px 0 12px}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px}
+  .stat{background:#f7fdf9;border:1px solid #d3f5e0;border-radius:10px;padding:16px 18px}
+  .stat .val{font-size:26px;font-weight:800;color:#111;letter-spacing:-1px}
+  .stat .lbl{font-size:10px;color:#888;margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+  th{background:#f0fdf4;color:#16a34a;font-weight:800;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:2px solid #d3f5e0}
+  td{padding:11px 14px;border-bottom:1px solid #f5f5f5;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .footer{margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:11px;color:#ccc;display:flex;justify-content:space-between}
+  @media print{body{padding:32px}}
+</style></head>
+<body>
+  <div class="header">
+    <div class="logo">Mercavex <span>Analytics</span></div>
+    <div class="meta">Generated: ${generated}<br/>Powered by OphidianAI Agency</div>
+  </div>
+  <h2>Overview</h2>
+  <div class="stat-grid">
+    <div class="stat"><div class="val">${analytics.totalPosts}</div><div class="lbl">Posts Tracked</div></div>
+    <div class="stat"><div class="val">${totalImpressions.toLocaleString()}</div><div class="lbl">Total Impressions</div></div>
+    <div class="stat"><div class="val">${totalEngagements.toLocaleString()}</div><div class="lbl">Engagements</div></div>
+    <div class="stat"><div class="val">${totalClicks.toLocaleString()}</div><div class="lbl">Clicks</div></div>
+  </div>
+  <div class="stat-grid" style="grid-template-columns:repeat(2,1fr);max-width:300px">
+    <div class="stat"><div class="val">${avgEngRate ? avgEngRate + "%" : "—"}</div><div class="lbl">Avg Eng. Rate</div></div>
+    <div class="stat"><div class="val">${platformEntries.length}</div><div class="lbl">Platforms</div></div>
+  </div>
+  ${topPost ? `<h2>Top Performing Post</h2>
+  <table><tr><th>Post</th><th>Impressions</th><th>Engagements</th><th>Eng. Rate</th><th>Clicks</th></tr>
+  <tr><td><strong>${topPost.adTitle || "Post"}</strong></td><td>${topPost.impressions.toLocaleString()}</td><td>${topPost.engagements.toLocaleString()}</td><td>${topPost.engagementRate}%</td><td>${(topPost.clicks||0).toLocaleString()}</td></tr>
+  </table>` : ""}
+  <h2>Platform Breakdown</h2>
+  <table><tr><th>Platform</th><th>Posts</th><th>Impressions</th><th>Engagements</th><th>Eng. Rate</th><th>Clicks</th></tr>${platRows}</table>
+  <h2>All Posts</h2>
+  <table><tr><th>Post</th><th>Date</th><th>Impressions</th><th>Engagements</th><th>Rate</th><th>Clicks</th></tr>${postRows}</table>
+  <div class="footer"><span>Mercavex by OphidianAI — Confidential Client Report</span><span>${generated}</span></div>
+</body></html>`;
+
+            const blob = new Blob([html], { type: "text/html" });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement("a");
+            a.href     = url;
+            a.download = `mercavex-report-${new Date().toISOString().split("T")[0]}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+          };
+
+          return (
+            <div className="anim">
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+                <div>
+                  <div style={S.h1}>Performance<br /><span style={{ color: "#2ECC71" }}>Analytics.</span></div>
+                  <div style={S.sub}>
+                    {analyticsLoading
+                      ? "Fetching data\u2026"
+                      : !analytics || analytics.totalPosts === 0
+                      ? "Analytics appear once your scheduled posts go live."
+                      : `Tracking ${analytics.totalPosts} post${analytics.totalPosts !== 1 ? "s" : ""} across ${platformEntries.length} platform${platformEntries.length !== 1 ? "s" : ""}.`}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  {planWhitelabelEnabled && analytics && analytics.totalPosts > 0 && (
+                    <button onClick={exportReport} style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px", color: "#4DFF8F", borderColor: "rgba(77,255,143,0.3)", display: "flex", alignItems: "center", gap: 7 }}>
+                      ⬇ Export Report <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, background: "rgba(77,255,143,0.12)", padding: "2px 6px", borderRadius: 4 }}>WHITE-LABEL</span>
+                    </button>
+                  )}
+                  <button style={{ ...S.ghost, fontSize: 12.5, padding: "10px 18px" }} onClick={loadAnalytics} disabled={analyticsLoading}>
+                    {analyticsLoading ? "Refreshing\u2026" : "\u21bb Refresh"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Free plan notice */}
+              {isBasic && analytics && analytics.totalPosts > 0 && (
+                <div style={{ background: "rgba(46,204,113,0.04)", border: "1px solid rgba(46,204,113,0.18)", borderRadius: 12, padding: "14px 18px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, lineHeight: 1.5 }}>
+                    <strong style={{ color: "#2ECC71" }}>Basic Analytics</strong> — showing your last 30 days, up to 5 posts. Clicks, trend charts, and full history require Pro.
+                  </div>
+                  <button onClick={() => setScreen("billing")} style={{ background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                    Upgrade →
+                  </button>
+                </div>
+              )}
+
+              {/* Loading */}
+              {analyticsLoading && (
+                <div style={{ textAlign: "center", padding: "70px 0", color: "rgba(255,255,255,0.3)", fontSize: 14 }}>
+                  Fetching analytics<Dots />
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!analyticsLoading && (!analytics || analytics.totalPosts === 0) && (
+                <div style={{ textAlign: "center", padding: "70px 30px", border: "1.5px dashed rgba(46,204,113,0.13)", borderRadius: 20, background: "rgba(255,255,255,0.01)" }}>
+                  <div style={{ fontSize: 46, marginBottom: 16 }}>&#128202;</div>
+                  <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No analytics yet</div>
+                  <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 13.5, lineHeight: 1.7, marginBottom: 26 }}>
+                    Metrics appear once your scheduled posts go live.<br />
+                    Posts need to be published before Ayrshare can report data.
+                  </div>
+                  <button style={S.btn} onClick={() => setScreen(ayrshareKey ? "input" : "connect")}>
+                    Create a Campaign →
+                  </button>
+                </div>
+              )}
+
+              {/* Data */}
+              {!analyticsLoading && analytics && analytics.totalPosts > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+
+                  {/* Stat cards row */}
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <StatCard label="Impressions"   value={totalImpressions.toLocaleString()} sub="across all posts"        accent="#fff"    />
+                    <StatCard label="Engagements"   value={totalEngagements.toLocaleString()} sub="likes, comments, shares" accent="#2ECC71" />
+                    <StatCard label="Avg Eng. Rate" value={avgEngRate ? `${avgEngRate}%` : "\u2014"}  sub="engagements / impressions" accent="#86EFAC" />
+                    <StatCard label="Clicks"        value={totalClicks.toLocaleString()}      sub="link clicks"              accent="#93C5FD" locked={isBasic} />
+                  </div>
+
+                  {/* Top performer */}
+                  {topPost && (
+                    <div>
+                      <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 12 }}>Top Performer</div>
+                      <div style={{ background: "rgba(46,204,113,0.04)", border: "1px solid rgba(46,204,113,0.15)", borderRadius: 14, padding: "18px 20px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                        <div style={{ fontSize: 30 }}>🏆</div>
+                        <div style={{ flex: 1, minWidth: 140 }}>
+                          <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{topPost.adTitle || "Post"}</div>
+                          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, marginTop: 2 }}>
+                            {topPost.engagements.toLocaleString()} engagements · {topPost.engagementRate}% rate
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Platform breakdown */}
+                  {platformEntries.length > 0 && (
+                    <div>
+                      <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>Platform Breakdown</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {platformEntries.sort(([,a],[,b]) => b.impressions - a.impressions).map(([platform, metrics]) => {
+                            const engRate = metrics.impressions > 0
+                              ? ((metrics.engagements / metrics.impressions) * 100).toFixed(1)
+                              : "0.0";
+                            return (
+                              <div key={platform} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.08)", borderRadius: 12, padding: "16px 18px" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <span style={{ fontSize: 18 }}>{PLATFORM_META[platform]?.icon || "📱"}</span>
+                                    <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{PLATFORM_META[platform]?.name || platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
+                                  </div>
+                                  <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{metrics.posts} post{metrics.posts !== 1 ? "s" : ""}</div>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: isBasic ? "repeat(3,1fr)" : "repeat(4,1fr)", gap: 10 }}>
+                                  {[
+                                    { label: "Impressions", val: metrics.impressions.toLocaleString(), color: "#fff"    },
+                                    { label: "Engagements", val: metrics.engagements.toLocaleString(), color: "#2ECC71" },
+                                    { label: "Eng. Rate",   val: `${engRate}%`,                        color: "#86EFAC" },
+                                    ...(!isBasic ? [{ label: "Clicks", val: (metrics.clicks || 0).toLocaleString(), color: "#93C5FD" }] : []),
+                                  ].map(({ label, val, color }) => (
+                                    <div key={label} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "10px 12px" }}>
+                                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
+                                      <div style={{ color, fontSize: 17, fontWeight: 800 }}>{val}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Engagement trend — Pro/Agency only */}
+                  {!isBasic && trend.length > 1 && (
+                    <div>
+                      <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>Engagement Trend</div>
+                      <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 14, padding: "22px 18px" }}>
+                        <div style={{ overflowX: "auto" }}>
+                          <svg width={Math.max(trend.length * 60, 320)} height={150} style={{ display: "block", overflow: "visible" }}>
+                            <defs>
+                              <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%"   stopColor="#2ECC71" stopOpacity="1"   />
+                                <stop offset="100%" stopColor="#1A8A3C" stopOpacity="0.55" />
+                              </linearGradient>
+                            </defs>
+                            {trend.map((t, i) => {
+                              const barH  = Math.max(Math.round((t.engagements / maxTrendVal) * 96), 3);
+                              const x     = i * 60 + 14;
+                              const y     = 106 - barH;
+                              const lbl   = new Date(t.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                              return (
+                                <g key={t.date}>
+                                  <rect x={x} y={y} width={36} height={barH} rx={5} fill="url(#barGrad)" opacity={0.9} />
+                                  <text x={x + 18} y={122} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={9} fontFamily="DM Sans,sans-serif">{lbl}</text>
+                                  {t.engagements > 0 && (
+                                    <text x={x + 18} y={y - 5} textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize={9.5} fontFamily="DM Sans,sans-serif">
+                                      {t.engagements.toLocaleString()}
+                                    </text>
+                                  )}
+                                </g>
+                              );
+                            })}
+                          </svg>
+                        </div>
+                        <div style={{ color: "rgba(255,255,255,0.2)", fontSize: 11, marginTop: 4, textAlign: "right" }}>Weekly engagements</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trend upgrade prompt for Free */}
+                  {isBasic && (
+                    <div style={{ background: "rgba(255,255,255,0.02)", border: "1.5px dashed rgba(46,204,113,0.2)", borderRadius: 14, padding: "28px 24px", textAlign: "center" }}>
+                      <div style={{ fontSize: 28, marginBottom: 10 }}>📈</div>
+                      <div style={{ color: "rgba(255,255,255,0.55)", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Engagement Trend — Pro Feature</div>
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, marginBottom: 18 }}>See weekly engagement trends, full historical data, and click tracking.</div>
+                      <button onClick={() => setScreen("billing")} style={{ background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", border: "none", borderRadius: 9, padding: "10px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                        Upgrade to Pro →
+                      </button>
+                    </div>
+                  )}
+
+                  {/* All posts table */}
+                  <div>
+                    <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 14 }}>
+                      All Posts {isBasic && <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10, letterSpacing: 1, fontWeight: 600 }}>(last 30 days · 5 max)</span>}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {[...posts].sort((a, b) => b.engagements - a.engagements).map((post, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, padding: "13px 16px", flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: 160 }}>
+                            <div style={{ color: "rgba(255,255,255,0.7)", fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{post.adTitle || "Post"}</div>
+                            {post.scheduleDate && (
+                              <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 11, marginTop: 2 }}>
+                                {new Date(post.scheduleDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", gap: 20, flexShrink: 0 }}>
+                            {[
+                              { label: "Impr.",  val: post.impressions.toLocaleString(), color: "#fff"    },
+                              { label: "Eng.",   val: post.engagements.toLocaleString(), color: "#2ECC71" },
+                              { label: "Rate",   val: `${post.engagementRate}%`,         color: "#86EFAC" },
+                              ...(!isBasic ? [{ label: "Clicks", val: (post.clicks || 0).toLocaleString(), color: "#93C5FD" }] : []),
+                            ].map(({ label, val, color }) => (
+                              <div key={label} style={{ textAlign: "right" }}>
+                                <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" }}>{label}</div>
+                                <div style={{ color, fontSize: 14, fontWeight: 700 }}>{val}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ══════════ ACCOUNT ══════════ */}
         {screen === "account" && (
