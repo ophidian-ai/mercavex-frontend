@@ -285,8 +285,9 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
   const [inviteBusy,   setInviteBusy]   = useState(false);
   const [teamMsg,      setTeamMsg]      = useState(null);
 
-  const isAgency = userPlan === "agency";
-  const isPro    = userPlan === "pro" || isAgency;
+  const isAgency   = userPlan === "agency";
+  const isBusiness = userPlan === "business";
+  const isPro      = userPlan === "pro" || isBusiness || isAgency;
   const authHdrs = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` });
 
   useEffect(() => {
@@ -379,8 +380,8 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
 
   const initials    = (fullName || user?.email || "?").charAt(0).toUpperCase();
   const displayEmail = user?.email || "";
-  const planLabel   = { free: "FREE", pro: "PRO", agency: "AGENCY" }[userPlan] || "FREE";
-  const planColor   = userPlan === "agency" ? "#4DFF8F" : userPlan === "pro" ? "#2ECC71" : "rgba(255,255,255,0.45)";
+  const planLabel   = { free: "FREE", pro: "PRO", business: "BUSINESS", agency: "AGENCY" }[userPlan] || "FREE";
+  const planColor   = userPlan === "agency" ? "#4DFF8F" : userPlan === "business" ? "#F59E0B" : userPlan === "pro" ? "#2ECC71" : "rgba(255,255,255,0.45)";
 
   const S = {
     section:      { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(46,204,113,0.1)", borderRadius: 16, padding: "26px 28px", marginBottom: 18 },
@@ -496,7 +497,7 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
           <div style={{ ...S.section, borderColor: "rgba(46,204,113,0.25)" }}>
             <div style={S.sectionTitle}><span style={{ color: "#2ECC71" }}>&#9733;</span> Priority Support</div>
             <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13.5, lineHeight: 1.7, marginBottom: 22 }}>
-              As a {userPlan === "agency" ? "Agency" : "Pro"} subscriber you have priority access to the Mercavex support team. We aim to respond within 4 business hours.
+              As a {{ agency: "Agency", business: "Business", pro: "Pro" }[userPlan] || "Pro"} subscriber you have priority access to the Mercavex support team. We aim to respond within 4 business hours.
             </div>
             <a href="mailto:support@ophidianai.com?subject=Mercavex%20Priority%20Support"
               style={{ display: "inline-block", background: "linear-gradient(135deg,#1A8A3C,#2ECC71)", color: "#fff", textDecoration: "none", borderRadius: 9, padding: "11px 22px", fontWeight: 700, fontSize: 13, fontFamily: "inherit", boxShadow: "0 3px 12px rgba(46,204,113,0.2)" }}>
@@ -652,19 +653,47 @@ const PLANS = [
     glow: "rgba(46,204,113,0.15)",
     badge: "Most Popular",
     features: [
+      "25 campaigns / month",
+      "AI ad generation (3 variants)",
+      "All 10 social platforms",
+      "AI image generation",
+      "AI video generation",
+      "Full analytics suite",
+      "Standard export reports",
+      "Priority support",
+    ],
+    missing: [
+      "Unlimited campaigns",
+      "Team members",
+      "White-label reports",
+    ],
+    cta: "Upgrade to Pro",
+    current: false,
+  },
+  {
+    id: "business",
+    name: "Business",
+    price: "$49",
+    period: "/ month",
+    icon: "◆",
+    color: "#F59E0B",
+    glow: "rgba(245,158,11,0.12)",
+    badge: "Best Value",
+    features: [
       "Unlimited campaigns",
       "AI ad generation (3 variants)",
       "All 10 social platforms",
       "AI image generation",
       "AI video generation",
       "Full analytics suite",
+      "Standard export reports",
       "Priority support",
     ],
     missing: [
       "Team members",
       "White-label reports",
     ],
-    cta: "Upgrade to Pro",
+    cta: "Upgrade to Business",
     current: false,
   },
   {
@@ -677,8 +706,8 @@ const PLANS = [
     glow: "rgba(77,255,143,0.12)",
     badge: "Full Suite",
     features: [
-      "Everything in Pro",
-      "Up to 5 team members",
+      "Everything in Business",
+      "Up to 4 additional team members",
       "Role-based access control",
       "Shared Ayrshare workspace",
       "White-label client reports",
@@ -752,9 +781,10 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
   // Resolve PLANS with current plan as active
   const resolvedPlans = PLANS.map(p => ({ ...p, current: p.id === activePlan }));
   const usageLimits = {
-    free:   { campaigns: 3,   platforms: 2  },
-    pro:    { campaigns: "∞", platforms: 10 },
-    agency: { campaigns: "∞", platforms: 10 },
+    free:     { campaigns: 3,   platforms: 2  },
+    pro:      { campaigns: 25,  platforms: 10 },
+    business: { campaigns: "∞", platforms: 10 },
+    agency:   { campaigns: "∞", platforms: 10 },
   }[activePlan] || { campaigns: 3, platforms: 2 };
 
   return (
@@ -779,7 +809,7 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
         <div style={{ background: "rgba(46,204,113,0.06)", border: "1px solid rgba(46,204,113,0.22)", borderRadius: 14, padding: "16px 22px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <div>
             <div style={{ color: "#2ECC71", fontWeight: 800, fontSize: 13, marginBottom: 3 }}>
-              ✓ {activePlan.charAt(0).toUpperCase() + activePlan.slice(1)} Plan — Active
+              ✓ {{ free: "Free", pro: "Pro", business: "Business", agency: "Agency" }[activePlan] || activePlan} Plan — Active
             </div>
             {periodLabel && (
               <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 12.5 }}>
@@ -807,10 +837,12 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
             <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
               {activePlan === "free"
                 ? <>{campaignsUsed || 0}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{usageLimits.campaigns}</span></>
-                : <span style={{ color: "#2ECC71" }}>∞</span>
+                : activePlan === "pro"
+                  ? <>{campaignsUsed || 0}<span style={{ color: "rgba(255,255,255,0.3)", fontSize: 14, fontWeight: 600 }}>/{usageLimits.campaigns}</span></>
+                  : <span style={{ color: "#2ECC71" }}>∞</span>
               }
             </div>
-            {activePlan === "free" && (
+            {(activePlan === "free" || activePlan === "pro") && (
               <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,0.08)", marginTop: 8, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${Math.min(((campaignsUsed || 0) / usageLimits.campaigns) * 100, 100)}%`, background: (campaignsUsed || 0) >= usageLimits.campaigns ? "linear-gradient(90deg,#ef4444,#f87171)" : "linear-gradient(90deg,#1A8A3C,#2ECC71)", borderRadius: 99, transition: "width 0.6s ease" }} />
               </div>
@@ -844,7 +876,7 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
             <div style={{ color: "rgba(255,255,255,0.32)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 6 }}>TEAM MEMBERS</div>
             <div style={{ color: "#fff", fontWeight: 800, fontSize: 22 }}>
               {activePlan === "agency"
-                ? <span style={{ color: "#4DFF8F" }}>Up to 5</span>
+                ? <span style={{ color: "#4DFF8F" }}>Up to 4</span>
                 : <span style={{ color: "rgba(255,59,48,0.8)", fontSize: 16, fontWeight: 700 }}>Locked</span>
               }
             </div>
@@ -864,7 +896,12 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
         </div>
         {activePlan === "free" && (
           <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: 16 }}>
-            Campaign limit resets at the start of each billing period. Upgrade for unlimited access.
+            Campaign limit resets at the start of each billing period. Upgrade to Pro for 25 campaigns, or Business for unlimited.
+          </div>
+        )}
+        {activePlan === "pro" && (
+          <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12, marginTop: 16 }}>
+            Running out of campaigns? Upgrade to Business for unlimited campaigns every month.
           </div>
         )}
       </div>
@@ -873,8 +910,8 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 24 }}>
         {resolvedPlans.map((plan, i) => (
           <div key={plan.id} style={{
-            background: plan.current ? `rgba(46,204,113,0.04)` : "rgba(255,255,255,0.02)",
-            border: `1.5px solid ${plan.current ? "rgba(46,204,113,0.3)" : "rgba(255,255,255,0.07)"}`,
+            background: plan.current ? `${plan.glow}` : "rgba(255,255,255,0.02)",
+            border: `1.5px solid ${plan.current ? `${plan.color}50` : "rgba(255,255,255,0.07)"}`,
             borderRadius: 18,
             padding: "28px 24px",
             position: "relative",
@@ -979,7 +1016,7 @@ function BillingScreen({ user, session, userPlan, planPeriodEnd, hasStripeCustom
         <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, fontWeight: 800, letterSpacing: 2.5, marginBottom: 14 }}>FREQUENTLY ASKED</div>
         {[
           { q: "Can I cancel anytime?", a: "Yes — no contracts, no hidden fees. Cancel from the billing portal with one click." },
-          { q: "What counts as a campaign?", a: "Each time you generate and publish a set of ads is one campaign. Duplicating an existing campaign also counts." },
+          { q: "What counts as a campaign?", a: "Each time you generate and publish a set of ads is one campaign. Duplicating an existing campaign also counts. Free = 3/mo, Pro = 25/mo, Business & Agency = unlimited." },
           { q: "Do unused credits roll over?", a: "Monthly limits reset at the start of each billing period and do not roll over." },
         ].map((item, i) => (
           <div key={i} style={{ borderTop: "1px solid rgba(255,255,255,0.05)", padding: "16px 0" }}>
@@ -2042,8 +2079,8 @@ export default function App() {
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "#fff", flexShrink: 0 }}>{userInitial}</div>
               <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</span>
               {userPlan !== "free" && (
-                <span style={{ background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", fontSize: 9, fontWeight: 800, letterSpacing: 1.2, padding: "2px 7px", borderRadius: 20, textTransform: "uppercase", flexShrink: 0 }}>
-                  {userPlan}
+                <span style={{ background: userPlan === "agency" ? "linear-gradient(135deg, #1A8A3C, #4DFF8F)" : userPlan === "business" ? "linear-gradient(135deg, #B45309, #F59E0B)" : "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", fontSize: 9, fontWeight: 800, letterSpacing: 1.2, padding: "2px 7px", borderRadius: 20, textTransform: "uppercase", flexShrink: 0 }}>
+                  {{ pro: "PRO", business: "BIZ", agency: "AGY" }[userPlan] || userPlan}
                 </span>
               )}
               <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, marginLeft: 2 }}>{userMenuOpen ? "▲" : "▾"}</span>
@@ -2061,8 +2098,8 @@ export default function App() {
                 <button className="user-dropdown-item" onClick={() => { setScreen("billing"); setUserMenuOpen(false); }}>
                   <span style={{ fontSize: 14 }}>◇</span> Plans &amp; Billing
                   {userPlan !== "free" && (
-                    <span style={{ marginLeft: "auto", background: "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", fontSize: 9, fontWeight: 800, letterSpacing: 1, padding: "2px 7px", borderRadius: 20, textTransform: "uppercase" }}>
-                      {userPlan}
+                    <span style={{ marginLeft: "auto", background: userPlan === "agency" ? "linear-gradient(135deg, #1A8A3C, #4DFF8F)" : userPlan === "business" ? "linear-gradient(135deg, #B45309, #F59E0B)" : "linear-gradient(135deg, #1A8A3C, #2ECC71)", color: "#fff", fontSize: 9, fontWeight: 800, letterSpacing: 1, padding: "2px 7px", borderRadius: 20, textTransform: "uppercase" }}>
+                      {{ pro: "PRO", business: "BIZ", agency: "AGY" }[userPlan] || userPlan}
                     </span>
                   )}
                 </button>
