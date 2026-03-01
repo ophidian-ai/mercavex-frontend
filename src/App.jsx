@@ -1396,8 +1396,8 @@ export default function App() {
 
   // ── Auto-load campaigns when navigating to dashboard ──
   useEffect(() => {
-    if (screen === "dashboard" && user && session) loadCampaigns();
-  }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (screen === "dashboard" && user && session) loadCampaigns(ayrshareKey);
+  }, [screen, ayrshareKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auto-load analytics when navigating to analytics tab ──
   useEffect(() => {
@@ -1865,18 +1865,19 @@ export default function App() {
   };
 
   // ── Campaigns: Load from backend ─────────────
-  const loadCampaigns = async () => {
+  const loadCampaigns = async (keyOverride) => {
     setCampaignsLoading(true);
+    const key = keyOverride !== undefined ? keyOverride : ayrshareKey;
     try {
       const resp = await fetch(`${BACKEND_URL}/campaigns`, { headers: authHeaders() });
       const data = await resp.json();
       setCampaigns(Array.isArray(data) ? data : []);
 
       // Also fetch live post statuses from Ayrshare to update "queued" → "published"
-      if (ayrshareKey) {
+      if (key) {
         try {
           const histResp = await fetch(
-            `${BACKEND_URL}/social/history?key=${encodeURIComponent(ayrshareKey)}`,
+            `${BACKEND_URL}/social/history?key=${encodeURIComponent(key)}`,
             { headers: authHeaders() }
           );
           const histData = await histResp.json();
@@ -2777,12 +2778,24 @@ export default function App() {
 
                   // Resolve live status for each post entry
                   const resolveStatus = (post) => {
-                    if (!post.ayrshareId || !liveStatuses[post.ayrshareId]) return post.status;
+                    // Time-based fallback: Post Now has null scheduleDate (always elapsed);
+                    // scheduled posts whose date has passed are also elapsed.
+                    const postDate  = post.scheduleDate ? new Date(post.scheduleDate) : null;
+                    const isElapsed = !postDate || postDate < new Date();
+
+                    if (!post.ayrshareId || !liveStatuses[post.ayrshareId]) {
+                      // No live data — apply time-based resolution for stored "scheduled" status
+                      if (post.status === "scheduled" && isElapsed) return "success";
+                      return post.status;
+                    }
+
                     const live = liveStatuses[post.ayrshareId].status;
                     if (live === "success")  return "success";
                     if (live === "partial")  return "partial";
                     if (live === "error")    return "error";
-                    return post.status; // fallback to stored
+                    // Ayrshare "queued" or "scheduled" — resolve by time
+                    if (isElapsed)          return "success";
+                    return "scheduled"; // genuinely still pending
                   };
 
                   const resolvedStatuses = log.map(resolveStatus);
