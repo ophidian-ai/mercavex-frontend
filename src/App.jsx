@@ -285,6 +285,14 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
   const [inviteBusy,   setInviteBusy]   = useState(false);
   const [teamMsg,      setTeamMsg]      = useState(null);
 
+  // ── Business Profile ──
+  const [businessType,    setBusinessType]    = useState("general");
+  const [businessIndustry, setBusinessIndustry] = useState("");
+  const [businessDesc,    setBusinessDesc]    = useState("");
+  const [imageModelPref,  setImageModelPref]  = useState("auto");
+  const [bizBusy,         setBizBusy]         = useState(false);
+  const [bizMsg,          setBizMsg]          = useState(null);
+
   const isAgency   = userPlan === "agency";
   const isBusiness = userPlan === "business";
   const isPro      = userPlan === "pro" || isBusiness || isAgency;
@@ -295,8 +303,12 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
     fetch(`${BACKEND_URL}/user/profile`, { headers: { Authorization: `Bearer ${session.access_token}` } })
       .then(r => r.json())
       .then(d => {
-        if (d.full_name)        setFullName(d.full_name);
-        if (d.ayrshare_api_key) setAyrshareKey(d.ayrshare_api_key);
+        if (d.full_name)               setFullName(d.full_name);
+        if (d.ayrshare_api_key)        setAyrshareKey(d.ayrshare_api_key);
+        if (d.business_type)           setBusinessType(d.business_type);
+        if (d.business_industry)       setBusinessIndustry(d.business_industry);
+        if (d.business_desc)           setBusinessDesc(d.business_desc);
+        if (d.image_model_preference)  setImageModelPref(d.image_model_preference);
       }).catch(() => {});
   }, [session]);
 
@@ -348,6 +360,25 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
       setKeyMsg({ type: "success", text: "API key saved." });
     } catch (e) { setKeyMsg({ type: "error", text: e.message }); }
     setKeyBusy(false);
+  };
+
+  const saveBusinessProfile = async () => {
+    setBizBusy(true); setBizMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/user/profile`, {
+        method: "PUT", headers: authHdrs(),
+        body: JSON.stringify({
+          business_type:          businessType,
+          business_industry:      businessIndustry,
+          business_desc:          businessDesc,
+          image_model_preference: imageModelPref,
+        }),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message || "Failed");
+      setBizMsg({ type: "success", text: "Business profile saved. AI will now select the best image model for you." });
+    } catch (e) { setBizMsg({ type: "error", text: e.message }); }
+    setBizBusy(false);
   };
 
   const inviteMember = async () => {
@@ -461,6 +492,102 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
             <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat password" style={S.inp} onKeyDown={e => e.key === "Enter" && changePassword()} />
             {pwMsg && <div style={S.msg(pwMsg.type)}>{pwMsg.text}</div>}
             <button onClick={changePassword} disabled={pwBusy} style={S.btn}>{pwBusy ? "Updating…" : "Update Password"}</button>
+          </div>
+
+          {/* ── Business Profile ── */}
+          <div style={{ ...S.section, borderColor: "rgba(46,204,113,0.2)" }}>
+            <div style={S.sectionTitle}>
+              <span style={{ color: "#2ECC71" }}>🧠</span> Business Profile
+              <span style={{ background: "rgba(46,204,113,0.08)", border: "1px solid rgba(46,204,113,0.2)", color: "#86EFAC", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, padding: "2px 8px", borderRadius: 20 }}>AI ROUTING</span>
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13, lineHeight: 1.7, marginBottom: 20 }}>
+              Tell Mercavex about your business so the AI automatically selects the best image generation model for your campaigns — photorealism for lifestyle brands, studio quality for e-commerce products.
+            </div>
+
+            <label style={S.label}>What does your business sell?</label>
+            <select
+              value={businessType}
+              onChange={e => setBusinessType(e.target.value)}
+              style={{ ...S.inp, cursor: "pointer", colorScheme: "dark", appearance: "auto" }}
+            >
+              <option value="general">General / Not sure yet</option>
+              <option value="ecommerce">Physical Products (e-commerce, retail, consumer goods)</option>
+              <option value="services">Digital or Professional Services (SaaS, consulting, agency)</option>
+              <option value="lifestyle">Lifestyle & Creator (fashion, food, travel, wellness)</option>
+              <option value="creator">Creative Content (art, media, entertainment)</option>
+              <option value="agency">Agency (managing multiple clients)</option>
+            </select>
+
+            <label style={S.label}>Industry</label>
+            <input
+              value={businessIndustry}
+              onChange={e => setBusinessIndustry(e.target.value)}
+              placeholder="e.g. Fashion, SaaS, Real Estate, Fitness…"
+              style={S.inp}
+            />
+
+            <label style={S.label}>Brand Description <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(one sentence)</span></label>
+            <input
+              value={businessDesc}
+              onChange={e => setBusinessDesc(e.target.value)}
+              placeholder="e.g. We sell premium handcrafted leather goods for modern professionals."
+              style={S.inp}
+            />
+
+            <label style={S.label}>Image Model Preference</label>
+            <select
+              value={imageModelPref}
+              onChange={e => setImageModelPref(e.target.value)}
+              style={{ ...S.inp, cursor: "pointer", colorScheme: "dark", appearance: "auto" }}
+            >
+              <option value="auto">Auto — Mercavex picks the best model (recommended)</option>
+              <option value="flux2">FLUX.2 Pro — Maximum photorealism (all business types)</option>
+            </select>
+
+            {/* Model routing preview */}
+            <div style={{ background: "rgba(46,204,113,0.04)", border: "1px solid rgba(46,204,113,0.12)", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Current Routing Preview</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[
+                  {
+                    label: "Image Model",
+                    value: imageModelPref === "flux2" ? "FLUX.2 Pro" : businessType === "ecommerce" ? "FLUX.2 Pro + Photoroom" : "FLUX.2 Pro",
+                    icon: "🔲",
+                    color: "#86EFAC",
+                  },
+                  {
+                    label: "Optimised For",
+                    value: businessType === "ecommerce" ? "Product photography, studio quality, clean backgrounds"
+                      : businessType === "services" ? "Premium brand imagery, professional scenes"
+                      : businessType === "lifestyle" ? "Editorial lifestyle, cinematic aesthetics"
+                      : businessType === "creator" ? "Vibrant creative direction, artistic flair"
+                      : businessType === "agency" ? "Versatile high-quality output for diverse clients"
+                      : "General purpose photorealistic imagery",
+                    icon: "🎯",
+                    color: "rgba(255,255,255,0.6)",
+                  },
+                  ...(businessType === "ecommerce" ? [{
+                    label: "Post-Processing",
+                    value: "Photoroom AI — background removal + studio environment",
+                    icon: "📦",
+                    color: "#93C5FD",
+                  }] : []),
+                ].map(({ label, value, icon, color }) => (
+                  <div key={label} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 13, flexShrink: 0 }}>{icon}</span>
+                    <div>
+                      <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, fontWeight: 700 }}>{label}: </span>
+                      <span style={{ color, fontSize: 12 }}>{value}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {bizMsg && <div style={S.msg(bizMsg.type)}>{bizMsg.text}</div>}
+            <button onClick={saveBusinessProfile} disabled={bizBusy} style={S.btn}>
+              {bizBusy ? "Saving…" : "Save Business Profile"}
+            </button>
           </div>
 
           <div style={S.section}>
