@@ -614,6 +614,396 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
 }
 
 
+
+
+// ─────────────────────────────────────────────
+//  AGENCY WORKSPACE SCREEN
+// ─────────────────────────────────────────────
+function AgencyScreen({ user, session, userPlan }) {
+  const [tab, setTab]               = useState("team");
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole]   = useState("member");
+  const [inviteBusy, setInviteBusy]   = useState(false);
+  const [teamMsg, setTeamMsg]         = useState(null);
+
+  // Brand workspace
+  const [brand, setBrand] = useState({
+    brand_name: "", tagline: "", brand_voice: "professional",
+    audience: "", key_messages: ["", "", ""], hashtag_sets: [], notes: "",
+  });
+  const [brandLoading, setBrandLoading] = useState(false);
+  const [brandBusy, setBrandBusy]       = useState(false);
+  const [brandMsg, setBrandMsg]         = useState(null);
+  const [newHashtagSet, setNewHashtagSet] = useState({ name: "", tags: "" });
+
+  const authH = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` });
+
+  const loadTeam = async () => {
+    setTeamLoading(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/team`, { headers: authH() });
+      const d = await r.json();
+      setTeamMembers(d.members || []);
+    } catch (e) {}
+    setTeamLoading(false);
+  };
+
+  const invite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteBusy(true); setTeamMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/team/invite`, {
+        method: "POST", headers: authH(),
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message);
+      setTeamMsg({ type: "success", text: d.message });
+      setInviteEmail(""); await loadTeam();
+    } catch (e) { setTeamMsg({ type: "error", text: e.message }); }
+    setInviteBusy(false);
+  };
+
+  const removeMember = async (id) => {
+    try {
+      await fetch(`${BACKEND_URL}/team/${id}`, { method: "DELETE", headers: authH() });
+      setTeamMembers(p => p.filter(m => m.id !== id));
+    } catch (e) {}
+  };
+
+  const updateRole = async (id, role) => {
+    try {
+      await fetch(`${BACKEND_URL}/team/${id}`, { method: "PATCH", headers: authH(), body: JSON.stringify({ role }) });
+      setTeamMembers(p => p.map(m => m.id === id ? { ...m, role } : m));
+    } catch (e) {}
+  };
+
+  const loadBrand = async () => {
+    setBrandLoading(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/workspace`, { headers: authH() });
+      const d = await r.json();
+      if (d.workspace) setBrand(prev => ({ ...prev, ...d.workspace }));
+    } catch (e) {}
+    setBrandLoading(false);
+  };
+
+  const saveBrand = async () => {
+    setBrandBusy(true); setBrandMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/workspace`, {
+        method: "PUT", headers: authH(), body: JSON.stringify(brand),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message);
+      setBrandMsg({ type: "success", text: "Brand workspace saved." });
+    } catch (e) { setBrandMsg({ type: "error", text: e.message }); }
+    setBrandBusy(false);
+  };
+
+  const addHashtagSet = () => {
+    if (!newHashtagSet.name.trim() || !newHashtagSet.tags.trim()) return;
+    setBrand(p => ({ ...p, hashtag_sets: [...(p.hashtag_sets || []), { name: newHashtagSet.name.trim(), tags: newHashtagSet.tags.trim() }] }));
+    setNewHashtagSet({ name: "", tags: "" });
+  };
+
+  const removeHashtagSet = (i) => setBrand(p => ({ ...p, hashtag_sets: p.hashtag_sets.filter((_, idx) => idx !== i) }));
+
+  useEffect(() => { if (session) loadTeam(); }, [session]);
+  useEffect(() => { if (tab === "brand" && session) loadBrand(); }, [tab]);
+
+  const A = {
+    card:  { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(77,255,143,0.1)", borderRadius: 16, padding: "24px 26px", marginBottom: 16 },
+    label: { display: "block", color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 8, textTransform: "uppercase" },
+    inp:   { width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(77,255,143,0.15)", borderRadius: 10, padding: "12px 14px", color: "#fff", fontSize: 13.5, fontFamily: "inherit", outline: "none", boxSizing: "border-box" },
+    btn:   { background: "linear-gradient(135deg,#0F5C28 0%,#2ECC71 100%)", color: "#fff", border: "none", borderRadius: 10, padding: "11px 22px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 3px 14px rgba(46,204,113,0.25)" },
+    ghost: { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "11px 18px", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+    msg:   (t) => ({ background: t === "success" ? "rgba(46,204,113,0.08)" : "rgba(255,59,48,0.08)", border: `1px solid ${t === "success" ? "rgba(46,204,113,0.2)" : "rgba(255,59,48,0.2)"}`, borderRadius: 9, padding: "10px 14px", color: t === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, marginTop: 10 }),
+    title: { color: "#fff", fontWeight: 800, fontSize: 15.5, marginBottom: 6, display: "flex", alignItems: "center", gap: 10 },
+  };
+
+  const VOICE_OPTIONS = [
+    { id: "professional", label: "Professional", desc: "Authoritative & polished" },
+    { id: "casual",       label: "Casual",       desc: "Friendly & approachable" },
+    { id: "bold",         label: "Bold",         desc: "Confident & assertive" },
+    { id: "playful",      label: "Playful",      desc: "Fun & energetic" },
+    { id: "luxury",       label: "Luxury",       desc: "Refined & premium" },
+  ];
+
+  const COMING_SOON = [
+    { icon: "📅", title: "Content Calendar",   desc: "Visualise every scheduled post across the team in a shared monthly calendar. Drag to reschedule, click to preview." },
+    { icon: "✅", title: "Approval Workflow",   desc: "Members draft campaigns. Admins approve or request changes before anything goes live. Full revision history." },
+    { icon: "📊", title: "Team Activity Feed",  desc: "A live log of every campaign created, edited, posted, or deleted — with timestamps and member attribution." },
+    { icon: "📁", title: "Brief Library",       desc: "Save reusable campaign briefs and prompt templates per client. One click to pre-fill the campaign builder." },
+    { icon: "📄", title: "White-Label Reports", desc: "Generate branded PDF performance reports with your client logo. Schedule monthly delivery via email." },
+    { icon: "🏢", title: "Client Portal",       desc: "Give clients a read-only login to view campaign results and approve content without accessing your workspace." },
+  ];
+
+  const seatCount = teamMembers.length;
+
+  return (
+    <div className="anim">
+      {/* Hero header */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: -1.5, fontFamily: "'DM Sans',sans-serif", lineHeight: 1, background: "linear-gradient(135deg,#2ECC71,#4DFF8F)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Agency</div>
+              <span style={{ background: "linear-gradient(135deg,#0F5C28,#2ECC71)", color: "#fff", fontSize: 10, fontWeight: 800, letterSpacing: 2, padding: "3px 10px", borderRadius: 20, textTransform: "uppercase" }}>Workspace</span>
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 14 }}>Your team's dedicated command centre.</div>
+          </div>
+          {/* Seat meter */}
+          <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(77,255,143,0.15)", borderRadius: 14, padding: "14px 20px", display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ color: "#4DFF8F", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>{seatCount}</div>
+              <div style={{ color: "rgba(255,255,255,0.28)", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 3 }}>Active</div>
+            </div>
+            <div style={{ width: 1, height: 34, background: "rgba(255,255,255,0.07)" }} />
+            <div style={{ textAlign: "center" }}>
+              <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>4</div>
+              <div style={{ color: "rgba(255,255,255,0.28)", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 3 }}>Seats</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{ width: 28, height: 6, borderRadius: 3, background: i < seatCount ? "linear-gradient(90deg,#1A8A3C,#4DFF8F)" : "rgba(255,255,255,0.08)" }} />
+              ))}
+            </div>
+          </div>
+        </div>
+        {/* Tab bar */}
+        <div style={{ display: "flex", gap: 4, marginTop: 24, borderBottom: "1px solid rgba(255,255,255,0.06)", marginLeft: -28, marginRight: -28, paddingLeft: 28 }}>
+          {[
+            { id: "team",    label: "Team",            icon: "👥" },
+            { id: "brand",   label: "Brand Workspace", icon: "✦" },
+            { id: "roadmap", label: "Coming Soon",     icon: "◈" },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
+              borderBottom: `2px solid ${tab === t.id ? "#4DFF8F" : "transparent"}`,
+              color: tab === t.id ? "#4DFF8F" : "rgba(255,255,255,0.3)",
+              padding: "10px 18px", fontSize: 13, fontWeight: 700, letterSpacing: 0.2,
+              marginBottom: -1, transition: "all 0.18s", display: "flex", alignItems: "center", gap: 7,
+            }}>
+              <span style={{ fontSize: 11 }}>{t.icon}</span>{t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* TEAM TAB */}
+      {tab === "team" && (
+        <div>
+          <div style={A.card}>
+            <div style={A.title}><span style={{ color: "#4DFF8F" }}>＋</span> Invite a Team Member</div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginBottom: 18, lineHeight: 1.6 }}>Members share your Ayrshare workspace and can create and publish campaigns. Up to 4 seats included.</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && invite()} placeholder="colleague@company.com" style={{ ...A.inp, flex: 1, minWidth: 200 }} />
+              <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(77,255,143,0.15)", borderRadius: 10, padding: "12px 14px", color: "rgba(255,255,255,0.7)", fontSize: 13, fontFamily: "inherit", outline: "none", cursor: "pointer", colorScheme: "dark", flexShrink: 0 }}>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+              <button onClick={invite} disabled={inviteBusy || seatCount >= 4} style={{ ...A.btn, flexShrink: 0 }}>
+                {inviteBusy ? "Sending…" : "Send Invite"}
+              </button>
+            </div>
+            {teamMsg && <div style={A.msg(teamMsg.type)}>{teamMsg.text}</div>}
+          </div>
+
+          <div style={A.card}>
+            <div style={A.title}>
+              <span style={{ color: "#4DFF8F" }}>👥</span> Team Members
+              <span style={{ background: "rgba(77,255,143,0.1)", border: "1px solid rgba(77,255,143,0.2)", color: "#4DFF8F", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, padding: "2px 9px", borderRadius: 20 }}>{seatCount}/4 seats</span>
+            </div>
+            {teamLoading ? (
+              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 13, textAlign: "center", padding: "30px 0" }}>Loading team…</div>
+            ) : teamMembers.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", border: "1.5px dashed rgba(77,255,143,0.1)", borderRadius: 12 }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
+                <div style={{ color: "rgba(255,255,255,0.5)", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>No team members yet</div>
+                <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 13 }}>Invite your first colleague above to get started.</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {teamMembers.map(m => {
+                  const email = m.member_email || m.invitee_email || "";
+                  const initial = email.charAt(0).toUpperCase();
+                  const isActive = m.status === "accepted" || m.status === "active";
+                  return (
+                    <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 14, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(77,255,143,0.07)", borderRadius: 12, padding: "14px 18px", flexWrap: "wrap" }}>
+                      <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#0F5C28,#2ECC71)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, color: "#fff", flexShrink: 0 }}>{initial}</div>
+                      <div style={{ flex: 1, minWidth: 160 }}>
+                        <div style={{ color: "#fff", fontWeight: 600, fontSize: 13.5 }}>{email}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                          <span style={{ background: isActive ? "rgba(46,204,113,0.12)" : "rgba(255,255,255,0.06)", color: isActive ? "#86EFAC" : "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, padding: "2px 8px", borderRadius: 20 }}>
+                            {isActive ? "✓ ACTIVE" : "⏳ PENDING"}
+                          </span>
+                          <span style={{ color: m.role === "admin" ? "#FCD34D" : "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>
+                            {m.role === "admin" ? "★ Admin" : "Member"}
+                          </span>
+                        </div>
+                      </div>
+                      <select value={m.role} onChange={e => updateRole(m.id, e.target.value)}
+                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "7px 12px", color: "rgba(255,255,255,0.6)", fontSize: 12, fontFamily: "inherit", outline: "none", cursor: "pointer", colorScheme: "dark", flexShrink: 0 }}>
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                      <button onClick={() => removeMember(m.id)} style={{ background: "rgba(255,59,48,0.07)", color: "rgba(255,100,100,0.7)", border: "1px solid rgba(255,59,48,0.15)", borderRadius: 8, padding: "7px 13px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>Remove</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div style={A.card}>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 18 }}>Role Permissions</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              {[
+                { role: "Admin",  color: "#FCD34D", icon: "★", perms: ["Create & manage campaigns", "Post to all platforms", "View analytics", "Invite & manage team members", "Edit brand workspace"] },
+                { role: "Member", color: "#86EFAC", icon: "◈", perms: ["Create & manage campaigns", "Post to all platforms", "View analytics"] },
+              ].map(({ role, color, icon, perms }) => (
+                <div key={role} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "16px 18px" }}>
+                  <div style={{ color, fontWeight: 800, fontSize: 13.5, marginBottom: 12 }}>{icon} {role}</div>
+                  {perms.map(p => (
+                    <div key={p} style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "rgba(255,255,255,0.45)", fontSize: 12.5, marginBottom: 7, lineHeight: 1.4 }}>
+                      <span style={{ color: "#4DFF8F", flexShrink: 0, marginTop: 1 }}>✓</span> {p}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BRAND WORKSPACE TAB */}
+      {tab === "brand" && (
+        <div>
+          {brandLoading ? (
+            <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)", fontSize: 13 }}>Loading workspace…</div>
+          ) : (
+            <>
+              <div style={A.card}>
+                <div style={A.title}><span style={{ color: "#4DFF8F" }}>✦</span> Brand Identity</div>
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginBottom: 20 }}>Shared across your whole team. Keeps every campaign consistent.</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                  <div>
+                    <label style={A.label}>Brand Name</label>
+                    <input value={brand.brand_name} onChange={e => setBrand(p => ({ ...p, brand_name: e.target.value }))} placeholder="e.g. OphidianAI" style={A.inp} />
+                  </div>
+                  <div>
+                    <label style={A.label}>Tagline</label>
+                    <input value={brand.tagline} onChange={e => setBrand(p => ({ ...p, tagline: e.target.value }))} placeholder="e.g. AI that works for you" style={A.inp} />
+                  </div>
+                </div>
+                <label style={A.label}>Target Audience</label>
+                <textarea value={brand.audience} onChange={e => setBrand(p => ({ ...p, audience: e.target.value }))} placeholder="Describe your ideal customer — industry, seniority, pain points, goals…" rows={3} style={{ ...A.inp, resize: "vertical", lineHeight: 1.6 }} />
+              </div>
+
+              <div style={A.card}>
+                <div style={A.title}><span style={{ color: "#4DFF8F" }}>◈</span> Brand Voice</div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+                  {VOICE_OPTIONS.map(v => (
+                    <button key={v.id} onClick={() => setBrand(p => ({ ...p, brand_voice: v.id }))}
+                      style={{ background: brand.brand_voice === v.id ? "linear-gradient(135deg,#0F5C28,#2ECC71)" : "rgba(255,255,255,0.04)", border: `1px solid ${brand.brand_voice === v.id ? "rgba(77,255,143,0.5)" : "rgba(255,255,255,0.1)"}`, borderRadius: 10, padding: "10px 16px", cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.18s" }}>
+                      <div style={{ color: brand.brand_voice === v.id ? "#fff" : "rgba(255,255,255,0.6)", fontWeight: 700, fontSize: 13 }}>{v.label}</div>
+                      <div style={{ color: brand.brand_voice === v.id ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.25)", fontSize: 11, marginTop: 2 }}>{v.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={A.card}>
+                <div style={A.title}><span style={{ color: "#4DFF8F" }}>◉</span> Key Messages</div>
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginBottom: 16 }}>Up to 3 core messages the AI will weave into your campaigns.</div>
+                {(brand.key_messages || ["","",""]).map((msg, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <span style={{ color: "#4DFF8F", fontWeight: 800, fontSize: 12, width: 18, flexShrink: 0 }}>0{i+1}</span>
+                    <input value={msg} onChange={e => {
+                      const updated = [...(brand.key_messages || ["","",""])];
+                      updated[i] = e.target.value;
+                      setBrand(p => ({ ...p, key_messages: updated }));
+                    }} placeholder={`Message ${i+1} — e.g. "Trusted by 500+ businesses"`} style={{ ...A.inp, marginBottom: 0 }} />
+                  </div>
+                ))}
+              </div>
+
+              <div style={A.card}>
+                <div style={A.title}><span style={{ color: "#4DFF8F" }}>#</span> Hashtag Sets</div>
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, marginBottom: 16 }}>Save named sets your team can quickly reference when building campaigns.</div>
+                {(brand.hashtag_sets || []).length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                    {(brand.hashtag_sets || []).map((set, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(77,255,143,0.07)", borderRadius: 10, padding: "12px 16px" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: "#4DFF8F", fontWeight: 700, fontSize: 12.5, marginBottom: 4 }}>{set.name}</div>
+                          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, lineHeight: 1.5 }}>{set.tags}</div>
+                        </div>
+                        <button onClick={() => removeHashtagSet(i)} style={{ background: "none", border: "none", color: "rgba(255,100,100,0.45)", fontSize: 13, cursor: "pointer", padding: "2px 6px", flexShrink: 0 }}>&#x2715;</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <input value={newHashtagSet.name} onChange={e => setNewHashtagSet(p => ({ ...p, name: e.target.value }))} placeholder="Set name (e.g. Product Launch)" style={{ ...A.inp, flex: "0 0 180px" }} />
+                  <input value={newHashtagSet.tags} onChange={e => setNewHashtagSet(p => ({ ...p, tags: e.target.value }))} placeholder="#tag1 #tag2 #tag3" style={{ ...A.inp, flex: 1, minWidth: 140 }} />
+                  <button onClick={addHashtagSet} style={{ ...A.ghost, flexShrink: 0 }}>+ Add Set</button>
+                </div>
+              </div>
+
+              <div style={A.card}>
+                <div style={A.title}><span style={{ color: "#4DFF8F" }}>&#x1F4DD;</span> Team Notes</div>
+                <textarea value={brand.notes} onChange={e => setBrand(p => ({ ...p, notes: e.target.value }))} placeholder="Shared notes, reminders, links, or anything the team should know…" rows={4} style={{ ...A.inp, resize: "vertical", lineHeight: 1.65 }} />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
+                <button onClick={saveBrand} disabled={brandBusy} style={A.btn}>
+                  {brandBusy ? "Saving…" : "&#x2713; Save Brand Workspace"}
+                </button>
+                {brandMsg && <span style={{ color: brandMsg.type === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, fontWeight: 600 }}>{brandMsg.text}</span>}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* COMING SOON TAB */}
+      {tab === "roadmap" && (
+        <div>
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18, marginBottom: 6 }}>What's Next for Agency</div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13.5, lineHeight: 1.65 }}>We're building Mercavex into a full marketing command centre for agency teams. Here's what's on the roadmap.</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 14 }}>
+            {COMING_SOON.map((f, i) => (
+              <div key={i} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(77,255,143,0.08)", borderRadius: 16, padding: "22px 22px 20px", position: "relative", overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: "rgba(77,255,143,0.04)", pointerEvents: "none" }} />
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 26 }}>{f.icon}</span>
+                  <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: 800, letterSpacing: 1.8, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase" }}>Coming Soon</span>
+                </div>
+                <div style={{ color: "#fff", fontWeight: 700, fontSize: 14.5, marginBottom: 8 }}>{f.title}</div>
+                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12.5, lineHeight: 1.65 }}>{f.desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 28, background: "rgba(77,255,143,0.04)", border: "1px solid rgba(77,255,143,0.12)", borderRadius: 14, padding: "18px 22px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 20 }}>&#x1F4AC;</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>Shape what gets built next</div>
+              <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13 }}>Agency subscribers get early access and direct input on the roadmap. Email us at <span style={{ color: "#4DFF8F" }}>accounts@ophidianai.com</span></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────
 //  BILLING SCREEN
 // ─────────────────────────────────────────────
@@ -1327,7 +1717,7 @@ export default function App() {
   // ── Campaign ──────────────────────────────────
   // Persist navigable screens to URL hash — restores on page reload.
   // Transient flow screens (generating, publishing, review, done) are excluded.
-  const HASH_SCREENS = new Set(["input","connect","dashboard","analytics","account","billing","visuals"]);
+  const HASH_SCREENS = new Set(["input","connect","dashboard","analytics","account","billing","visuals","agency"]);
   const getInitialScreen = () => {
     const hash = window.location.hash.replace("#", "");
     return HASH_SCREENS.has(hash) ? hash : "connect";
@@ -2051,6 +2441,20 @@ export default function App() {
             </span>
           )}
         </button>
+
+        {planTeamEnabled && (
+          <>
+            <div style={{ height: 1, background: "rgba(255,255,255,0.05)", margin: "10px 6px" }} />
+            <div style={{ color: "rgba(255,255,255,0.18)", fontSize: 9.5, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", padding: "0 6px", marginBottom: 8 }}>Workspace</div>
+            <button className="sidebar-nav-btn" onClick={() => { setScreen("agency"); setSidebarOpen(false); }}
+              style={{ color: screen === "agency" ? "#4DFF8F" : undefined, borderLeft: screen === "agency" ? "2px solid #4DFF8F" : "2px solid transparent", paddingLeft: 10 }}>
+              <span style={{ fontSize: 13 }}>◈</span> Agency
+              <span style={{ marginLeft: "auto", background: "rgba(77,255,143,0.1)", border: "1px solid rgba(77,255,143,0.25)", borderRadius: 20, padding: "1px 7px", fontSize: 9, fontWeight: 800, color: "#4DFF8F", letterSpacing: 1 }}>
+                TEAM
+              </span>
+            </button>
+          </>
+        )}
 
         <div style={{ flex: 1 }} />
         <div style={{ padding: "0 6px" }}>
@@ -2778,24 +3182,16 @@ export default function App() {
 
                   // Resolve live status for each post entry
                   const resolveStatus = (post) => {
-                    // Time-based fallback: Post Now has null scheduleDate (always elapsed);
-                    // scheduled posts whose date has passed are also elapsed.
-                    const postDate  = post.scheduleDate ? new Date(post.scheduleDate) : null;
-                    const isElapsed = !postDate || postDate < new Date();
-
-                    if (!post.ayrshareId || !liveStatuses[post.ayrshareId]) {
-                      // No live data — apply time-based resolution for stored "scheduled" status
-                      if (post.status === "scheduled" && isElapsed) return "success";
-                      return post.status;
-                    }
-
+                    if (!post.ayrshareId || !liveStatuses[post.ayrshareId]) return post.status;
                     const live = liveStatuses[post.ayrshareId].status;
-                    if (live === "success")  return "success";
-                    if (live === "partial")  return "partial";
-                    if (live === "error")    return "error";
-                    // Ayrshare "queued" or "scheduled" — resolve by time
-                    if (isElapsed)          return "success";
-                    return "scheduled"; // genuinely still pending
+                    if (live === "success")   return "success";
+                    if (live === "partial")   return "partial";
+                    if (live === "error")     return "error";
+                    // Ayrshare uses "queued" for immediate posts in-flight
+                    if (live === "queued")    return "scheduled";
+                    // If Ayrshare still says "scheduled" but the post date has passed → treat as published
+                    if (live === "scheduled" && post.scheduleDate && new Date(post.scheduleDate) < new Date()) return "success";
+                    return post.status; // fallback to stored
                   };
 
                   const resolvedStatuses = log.map(resolveStatus);
@@ -3278,6 +3674,11 @@ export default function App() {
         {/* ══════════ BILLING ══════════ */}
         {screen === "billing" && (
           <BillingScreen user={user} session={session} userPlan={userPlan} planPeriodEnd={planPeriodEnd} hasStripeCustomer={hasStripeCustomer} campaignsUsed={campaignsThisMonth} />
+        )}
+
+        {/* ══════════ AGENCY ══════════ */}
+        {screen === "agency" && (
+          <AgencyScreen session={session} user={user} userPlan={userPlan} />
         )}
 
       </div>
