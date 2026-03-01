@@ -2493,8 +2493,10 @@ export default function App() {
         let derivedStatus, derivedMessage;
 
         if (succeededPlatforms.length > 0 && failedErrors.length === 0) {
-          derivedStatus  = "scheduled";
-          derivedMessage = "Post queued" + skippedNote;
+          // Immediate posts (no future scheduleDate) are live within seconds — store as success.
+          // Only store "scheduled" when there is an actual future date.
+          derivedStatus  = scheduleDate ? "scheduled" : "success";
+          derivedMessage = scheduleDate ? "Scheduled" + skippedNote : "Published" + skippedNote;
         } else if (succeededPlatforms.length > 0 && failedErrors.length > 0) {
           derivedStatus  = "partial";
           const failedNames = failedErrors.map(e => e.platform ? (PLATFORM_META[e.platform]?.name || e.platform) : "unknown").join(", ");
@@ -3521,15 +3523,27 @@ export default function App() {
 
                   // Resolve live status for each post entry
                   const resolveStatus = (post) => {
-                    if (!post.ayrshareId || !liveStatuses[post.ayrshareId]) return post.status;
+                    if (!post.ayrshareId || !liveStatuses[post.ayrshareId]) {
+                      // No live data available — use stored status, but treat "scheduled"
+                      // with a past/missing date as published (immediate posts, old campaigns)
+                      if (post.status === "scheduled" && (!post.scheduleDate || new Date(post.scheduleDate) < new Date())) {
+                        return "success";
+                      }
+                      return post.status;
+                    }
                     const live = liveStatuses[post.ayrshareId].status;
                     if (live === "success")   return "success";
                     if (live === "partial")   return "partial";
                     if (live === "error")     return "error";
-                    // Ayrshare uses "queued" for immediate posts in-flight
-                    if (live === "queued")    return "scheduled";
-                    // If Ayrshare still says "scheduled" but the post date has passed → treat as published
-                    if (live === "scheduled" && post.scheduleDate && new Date(post.scheduleDate) < new Date()) return "success";
+                    // Ayrshare "queued" = immediate post in-flight = already live
+                    if (live === "queued") return "success";
+                    if (live === "scheduled") {
+                      // No scheduleDate = was an immediate post = already published
+                      if (!post.scheduleDate) return "success";
+                      // Future-scheduled but date has passed = treat as published
+                      if (new Date(post.scheduleDate) < new Date()) return "success";
+                      return "scheduled";
+                    }
                     return post.status; // fallback to stored
                   };
 
