@@ -2308,12 +2308,28 @@ export default function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Poll video status for any ads currently processing ──
+  // Uses setInterval so polling continues reliably even when adVisuals
+  // hasn’t changed (i.e. status is still "processing"). Times out after 6 min.
   useEffect(() => {
     const processing = Object.entries(adVisuals).filter(([, v]) => v.videoStatus === "processing");
     if (processing.length === 0) return;
-    const timer = setTimeout(async () => {
+
+    const startTimes = {};
+    for (const [idx, v] of processing) {
+      startTimes[idx] = v.pollStartedAt || Date.now();
+      if (!v.pollStartedAt) {
+        setAdVisuals(prev => ({ ...prev, [idx]: { ...prev[idx], pollStartedAt: Date.now() } }));
+      }
+    }
+
+    const interval = setInterval(async () => {
       for (const [idx, v] of processing) {
         if (!v.videoRequestId) continue;
+        // Time out after 6 minutes
+        if (Date.now() - (startTimes[idx] || Date.now()) > 6 * 60 * 1000) {
+          setAdVisuals(prev => ({ ...prev, [idx]: { ...prev[idx], videoStatus: "failed" } }));
+          continue;
+        }
         try {
           const resp = await fetch(`${BACKEND_URL}/ai/video-status/${v.videoRequestId}`, { headers: authHeaders() });
           const data = await resp.json();
@@ -2322,11 +2338,12 @@ export default function App() {
           } else if (data.status === "failed") {
             setAdVisuals(prev => ({ ...prev, [idx]: { ...prev[idx], videoStatus: "failed" } }));
           }
-          // still processing — loop will re-trigger via dependency change
-        } catch (e) { /* silent poll failure — will retry */ }
+          // "processing" — interval continues automatically
+        } catch (e) { /* silent poll failure — will retry next tick */ }
       }
-    }, 5000);
-    return () => clearTimeout(timer);
+    }, 6000);
+
+    return () => clearInterval(interval);
   }, [adVisuals]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Auth helper: get token headers ────────────
@@ -3366,7 +3383,7 @@ export default function App() {
                           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", marginBottom: 2 }}>🎬 Short Video</div>
                           {!vidUrl && !vidProcessing && !vidPlanLimit && (
                             <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 12 }}>
-                              {imgUrl ? "Cinematic motion from your image · ~30–60s" : "Generate an image first to unlock"}
+                              {imgUrl ? "Cinematic motion from your image · ~2–4 min" : "Generate an image first to unlock"}
                             </div>
                           )}
                         </div>
@@ -3418,7 +3435,7 @@ export default function App() {
                         <div style={{ borderRadius: 10, aspectRatio: "16/9", background: "rgba(99,179,237,0.04)", border: "1.5px dashed rgba(99,179,237,0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
                           <div style={{ fontSize: 32, animation: "glowPulse 1.6s ease-in-out infinite" }}>🎬</div>
                           <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>Generating cinematic video…</div>
-                          <div style={{ color: "rgba(255,255,255,0.18)", fontSize: 11 }}>This takes 30–60 seconds</div>
+                          <div style={{ color: "rgba(255,255,255,0.18)", fontSize: 11 }}>This typically takes 2–4 minutes</div>
                         </div>
                       )}
                       {vidUrl && (
