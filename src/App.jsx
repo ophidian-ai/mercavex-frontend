@@ -619,7 +619,7 @@ function AccountScreen({ user, session, onProfileUpdate, userPlan }) {
 // ─────────────────────────────────────────────
 //  AGENCY WORKSPACE SCREEN
 // ─────────────────────────────────────────────
-function AgencyScreen({ user, session, userPlan }) {
+function AgencyScreen({ user, session, userPlan, campaigns = [] }) {
   const [tab, setTab]               = useState("team");
   const [teamMembers, setTeamMembers] = useState([]);
   const [teamLoading, setTeamLoading] = useState(true);
@@ -638,8 +638,29 @@ function AgencyScreen({ user, session, userPlan }) {
   const [brandMsg, setBrandMsg]         = useState(null);
   const [newHashtagSet, setNewHashtagSet] = useState({ name: "", tags: "" });
 
+  // Brief Library
+  const [briefs, setBriefs]           = useState([]);
+  const [briefsLoading, setBriefsLoading] = useState(false);
+  const [briefForm, setBriefForm]     = useState({ title: "", description: "", objective: "", tone: "professional", tags: "" });
+  const [briefFormOpen, setBriefFormOpen] = useState(false);
+  const [briefBusy, setBriefBusy]     = useState(false);
+  const [briefMsg, setBriefMsg]       = useState(null);
+
+  // Activity Feed
+  const [activity, setActivity]       = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+
+  // Approval Queue
+  const [approvals, setApprovals]     = useState([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [approvalBusy, setApprovalBusy] = useState(null);
+
+  // Content Calendar
+  const [calMonth, setCalMonth]       = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+
   const authH = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` });
 
+  // ── Data loaders ─────────────────────────────
   const loadTeam = async () => {
     setTeamLoading(true);
     try {
@@ -650,6 +671,47 @@ function AgencyScreen({ user, session, userPlan }) {
     setTeamLoading(false);
   };
 
+  const loadBrand = async () => {
+    setBrandLoading(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/workspace`, { headers: authH() });
+      const d = await r.json();
+      if (d.workspace) setBrand(prev => ({ ...prev, ...d.workspace }));
+    } catch (e) {}
+    setBrandLoading(false);
+  };
+
+  const loadBriefs = async () => {
+    setBriefsLoading(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/briefs`, { headers: authH() });
+      const d = await r.json();
+      setBriefs(Array.isArray(d) ? d : []);
+    } catch (e) {}
+    setBriefsLoading(false);
+  };
+
+  const loadActivity = async () => {
+    setActivityLoading(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/activity`, { headers: authH() });
+      const d = await r.json();
+      setActivity(Array.isArray(d) ? d : []);
+    } catch (e) {}
+    setActivityLoading(false);
+  };
+
+  const loadApprovals = async () => {
+    setApprovalsLoading(true);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/approvals`, { headers: authH() });
+      const d = await r.json();
+      setApprovals(Array.isArray(d) ? d : []);
+    } catch (e) {}
+    setApprovalsLoading(false);
+  };
+
+  // ── Team actions ──────────────────────────────
   const invite = async () => {
     if (!inviteEmail.trim()) return;
     setInviteBusy(true); setTeamMsg(null);
@@ -680,16 +742,7 @@ function AgencyScreen({ user, session, userPlan }) {
     } catch (e) {}
   };
 
-  const loadBrand = async () => {
-    setBrandLoading(true);
-    try {
-      const r = await fetch(`${BACKEND_URL}/agency/workspace`, { headers: authH() });
-      const d = await r.json();
-      if (d.workspace) setBrand(prev => ({ ...prev, ...d.workspace }));
-    } catch (e) {}
-    setBrandLoading(false);
-  };
-
+  // ── Brand actions ─────────────────────────────
   const saveBrand = async () => {
     setBrandBusy(true); setBrandMsg(null);
     try {
@@ -711,9 +764,57 @@ function AgencyScreen({ user, session, userPlan }) {
 
   const removeHashtagSet = (i) => setBrand(p => ({ ...p, hashtag_sets: p.hashtag_sets.filter((_, idx) => idx !== i) }));
 
-  useEffect(() => { if (session) loadTeam(); }, [session]);
-  useEffect(() => { if (tab === "brand" && session) loadBrand(); }, [tab]);
+  // ── Brief actions ─────────────────────────────
+  const saveBreif = async () => {
+    if (!briefForm.title.trim()) return;
+    setBriefBusy(true); setBriefMsg(null);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/briefs`, {
+        method: "POST", headers: authH(),
+        body: JSON.stringify({ ...briefForm, tags: briefForm.tags.split(",").map(t => t.trim()).filter(Boolean) }),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message);
+      setBriefMsg({ type: "success", text: "Brief saved to library." });
+      setBriefForm({ title: "", description: "", objective: "", tone: "professional", tags: "" });
+      setBriefFormOpen(false);
+      await loadBriefs();
+    } catch (e) { setBriefMsg({ type: "error", text: e.message }); }
+    setBriefBusy(false);
+  };
 
+  const deleteBrief = async (id) => {
+    try {
+      await fetch(`${BACKEND_URL}/agency/briefs/${id}`, { method: "DELETE", headers: authH() });
+      setBriefs(p => p.filter(b => b.id !== id));
+    } catch (e) {}
+  };
+
+  // ── Approval actions ──────────────────────────
+  const decideApproval = async (id, status) => {
+    setApprovalBusy(id);
+    try {
+      const r = await fetch(`${BACKEND_URL}/agency/approvals/${id}`, {
+        method: "PATCH", headers: authH(), body: JSON.stringify({ status }),
+      });
+      const d = await r.json();
+      if (d.status !== "ok") throw new Error(d.message);
+      setApprovals(p => p.filter(a => a.id !== id));
+    } catch (e) {}
+    setApprovalBusy(null);
+  };
+
+  // ── Effects ───────────────────────────────────
+  useEffect(() => { if (session) loadTeam(); }, [session]);
+  useEffect(() => {
+    if (!session) return;
+    if (tab === "brand")    loadBrand();
+    if (tab === "briefs")   loadBriefs();
+    if (tab === "activity") loadActivity();
+    if (tab === "approvals") loadApprovals();
+  }, [tab, session]);
+
+  // ── Styles ────────────────────────────────────
   const A = {
     card:  { background: "rgba(255,255,255,0.025)", border: "1px solid rgba(77,255,143,0.1)", borderRadius: 16, padding: "24px 26px", marginBottom: 16 },
     label: { display: "block", color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, marginBottom: 8, textTransform: "uppercase" },
@@ -732,26 +833,52 @@ function AgencyScreen({ user, session, userPlan }) {
     { id: "luxury",       label: "Luxury",       desc: "Refined & premium" },
   ];
 
-  const COMING_SOON = [
-    { icon: "📅", title: "Content Calendar",   desc: "Visualise every scheduled post across the team in a shared monthly calendar. Drag to reschedule, click to preview." },
-    { icon: "✅", title: "Approval Workflow",   desc: "Members draft campaigns. Admins approve or request changes before anything goes live. Full revision history." },
-    { icon: "📊", title: "Team Activity Feed",  desc: "A live log of every campaign created, edited, posted, or deleted — with timestamps and member attribution." },
-    { icon: "📁", title: "Brief Library",       desc: "Save reusable campaign briefs and prompt templates per client. One click to pre-fill the campaign builder." },
-    { icon: "📄", title: "White-Label Reports", desc: "Generate branded PDF performance reports with your client logo. Schedule monthly delivery via email." },
-    { icon: "🏢", title: "Client Portal",       desc: "Give clients a read-only login to view campaign results and approve content without accessing your workspace." },
-  ];
+  const TONE_OPTS = ["professional","casual","bold","playful","luxury","urgent","inspirational"];
 
   const seatCount = teamMembers.length;
 
+  // ── Calendar helpers ─────────────────────────
+  const calDays = (() => {
+    const { y, m } = calMonth;
+    const first = new Date(y, m, 1).getDay();
+    const total = new Date(y, m + 1, 0).getDate();
+    return { first, total };
+  })();
+
+  const campaignsByDay = (() => {
+    const map = {};
+    campaigns.forEach(c => {
+      if (!c.scheduled_at) return;
+      const d = new Date(c.scheduled_at);
+      if (d.getFullYear() === calMonth.y && d.getMonth() === calMonth.m) {
+        const day = d.getDate();
+        if (!map[day]) map[day] = [];
+        map[day].push(c);
+      }
+    });
+    return map;
+  })();
+
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  const TABS = [
+    { id: "team",      label: "Team",            icon: "👥" },
+    { id: "brand",     label: "Brand Workspace", icon: "✦"  },
+    { id: "calendar",  label: "Content Calendar",icon: "📅" },
+    { id: "approvals", label: "Approvals",       icon: "✅", badge: approvals.length || null },
+    { id: "briefs",    label: "Brief Library",   icon: "📁" },
+    { id: "activity",  label: "Activity Feed",   icon: "📊" },
+  ];
+
   return (
     <div className="anim">
-      {/* Hero header */}
+      {/* ── Hero header ── */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
               <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: -1.5, fontFamily: "'DM Sans',sans-serif", lineHeight: 1, background: "linear-gradient(135deg,#2ECC71,#4DFF8F)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>Agency</div>
-              <span style={{ background: "linear-gradient(135deg,#0F5C28,#2ECC71)", color: "#fff", fontSize: 10, fontWeight: 800, letterSpacing: 2, padding: "3px 10px", borderRadius: 20, textTransform: "uppercase" }}>Workspace</span>
+              <span style={{ background: "linear-gradient(135deg,#0F5C28,#2ECC71)", color: "#fff", fontSize: 10, fontWeight: 800, letterSpacing: 2, padding: "3px 10px", borderRadius: 20 }}>HQ</span>
             </div>
             <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 14 }}>Your team's dedicated command centre.</div>
           </div>
@@ -773,27 +900,28 @@ function AgencyScreen({ user, session, userPlan }) {
             </div>
           </div>
         </div>
+
         {/* Tab bar */}
-        <div style={{ display: "flex", gap: 4, marginTop: 24, borderBottom: "1px solid rgba(255,255,255,0.06)", marginLeft: -28, marginRight: -28, paddingLeft: 28 }}>
-          {[
-            { id: "team",    label: "Team",            icon: "👥" },
-            { id: "brand",   label: "Brand Workspace", icon: "✦" },
-            { id: "roadmap", label: "Coming Soon",     icon: "◈" },
-          ].map(t => (
+        <div style={{ display: "flex", gap: 2, marginTop: 24, borderBottom: "1px solid rgba(255,255,255,0.06)", marginLeft: -28, marginRight: -28, paddingLeft: 28, overflowX: "auto" }}>
+          {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
               borderBottom: `2px solid ${tab === t.id ? "#4DFF8F" : "transparent"}`,
               color: tab === t.id ? "#4DFF8F" : "rgba(255,255,255,0.3)",
-              padding: "10px 18px", fontSize: 13, fontWeight: 700, letterSpacing: 0.2,
+              padding: "10px 16px", fontSize: 12.5, fontWeight: 700, letterSpacing: 0.2,
               marginBottom: -1, transition: "all 0.18s", display: "flex", alignItems: "center", gap: 7,
+              whiteSpace: "nowrap",
             }}>
               <span style={{ fontSize: 11 }}>{t.icon}</span>{t.label}
+              {t.badge ? <span style={{ background: "#4DFF8F", color: "#0A1628", fontSize: 9, fontWeight: 900, borderRadius: 99, padding: "1px 6px", marginLeft: 2 }}>{t.badge}</span> : null}
             </button>
           ))}
         </div>
       </div>
 
-      {/* TEAM TAB */}
+      {/* ══════════════════════════════════════
+          TEAM TAB
+      ══════════════════════════════════════ */}
       {tab === "team" && (
         <div>
           <div style={A.card}>
@@ -863,8 +991,8 @@ function AgencyScreen({ user, session, userPlan }) {
             <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", marginBottom: 18 }}>Role Permissions</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               {[
-                { role: "Admin",  color: "#FCD34D", icon: "★", perms: ["Create & manage campaigns", "Post to all platforms", "View analytics", "Invite & manage team members", "Edit brand workspace"] },
-                { role: "Member", color: "#86EFAC", icon: "◈", perms: ["Create & manage campaigns", "Post to all platforms", "View analytics"] },
+                { role: "Admin",  color: "#FCD34D", icon: "★", perms: ["Create & manage campaigns", "Post to all platforms", "View analytics", "Invite & manage team members", "Edit brand workspace", "Approve & reject campaigns"] },
+                { role: "Member", color: "#86EFAC", icon: "◈", perms: ["Create & manage campaigns", "Post to all platforms", "View analytics", "Submit campaigns for approval"] },
               ].map(({ role, color, icon, perms }) => (
                 <div key={role} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "16px 18px" }}>
                   <div style={{ color, fontWeight: 800, fontSize: 13.5, marginBottom: 12 }}>{icon} {role}</div>
@@ -880,7 +1008,9 @@ function AgencyScreen({ user, session, userPlan }) {
         </div>
       )}
 
-      {/* BRAND WORKSPACE TAB */}
+      {/* ══════════════════════════════════════
+          BRAND WORKSPACE TAB
+      ══════════════════════════════════════ */}
       {tab === "brand" && (
         <div>
           {brandLoading ? (
@@ -943,7 +1073,7 @@ function AgencyScreen({ user, session, userPlan }) {
                           <div style={{ color: "#4DFF8F", fontWeight: 700, fontSize: 12.5, marginBottom: 4 }}>{set.name}</div>
                           <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, lineHeight: 1.5 }}>{set.tags}</div>
                         </div>
-                        <button onClick={() => removeHashtagSet(i)} style={{ background: "none", border: "none", color: "rgba(255,100,100,0.45)", fontSize: 13, cursor: "pointer", padding: "2px 6px", flexShrink: 0 }}>&#x2715;</button>
+                        <button onClick={() => removeHashtagSet(i)} style={{ background: "none", border: "none", color: "rgba(255,100,100,0.45)", fontSize: 13, cursor: "pointer", padding: "2px 6px", flexShrink: 0 }}>✕</button>
                       </div>
                     ))}
                   </div>
@@ -951,18 +1081,18 @@ function AgencyScreen({ user, session, userPlan }) {
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <input value={newHashtagSet.name} onChange={e => setNewHashtagSet(p => ({ ...p, name: e.target.value }))} placeholder="Set name (e.g. Product Launch)" style={{ ...A.inp, flex: "0 0 180px" }} />
                   <input value={newHashtagSet.tags} onChange={e => setNewHashtagSet(p => ({ ...p, tags: e.target.value }))} placeholder="#tag1 #tag2 #tag3" style={{ ...A.inp, flex: 1, minWidth: 140 }} />
-                  <button onClick={addHashtagSet} style={{ ...A.ghost, flexShrink: 0 }}>+ Add Set</button>
+                  <button onClick={addHashtagSet} style={{ ...A.ghost, flexShrink: 0 }}>+ Add</button>
                 </div>
               </div>
 
               <div style={A.card}>
-                <div style={A.title}><span style={{ color: "#4DFF8F" }}>&#x1F4DD;</span> Team Notes</div>
+                <div style={A.title}><span style={{ color: "#4DFF8F" }}>📝</span> Team Notes</div>
                 <textarea value={brand.notes} onChange={e => setBrand(p => ({ ...p, notes: e.target.value }))} placeholder="Shared notes, reminders, links, or anything the team should know…" rows={4} style={{ ...A.inp, resize: "vertical", lineHeight: 1.65 }} />
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 24 }}>
                 <button onClick={saveBrand} disabled={brandBusy} style={A.btn}>
-                  {brandBusy ? "Saving…" : "&#x2713; Save Brand Workspace"}
+                  {brandBusy ? "Saving…" : "✓ Save Brand Workspace"}
                 </button>
                 {brandMsg && <span style={{ color: brandMsg.type === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, fontWeight: 600 }}>{brandMsg.text}</span>}
               </div>
@@ -971,33 +1101,263 @@ function AgencyScreen({ user, session, userPlan }) {
         </div>
       )}
 
-      {/* COMING SOON TAB */}
-      {tab === "roadmap" && (
-        <div>
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18, marginBottom: 6 }}>What's Next for Agency</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13.5, lineHeight: 1.65 }}>We're building Mercavex into a full marketing command centre for agency teams. Here's what's on the roadmap.</div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 14 }}>
-            {COMING_SOON.map((f, i) => (
-              <div key={i} style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(77,255,143,0.08)", borderRadius: 16, padding: "22px 22px 20px", position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", top: -20, right: -20, width: 80, height: 80, borderRadius: "50%", background: "rgba(77,255,143,0.04)", pointerEvents: "none" }} />
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
-                  <span style={{ fontSize: 26 }}>{f.icon}</span>
-                  <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: 800, letterSpacing: 1.8, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase" }}>Coming Soon</span>
-                </div>
-                <div style={{ color: "#fff", fontWeight: 700, fontSize: 14.5, marginBottom: 8 }}>{f.title}</div>
-                <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12.5, lineHeight: 1.65 }}>{f.desc}</div>
+      {/* ══════════════════════════════════════
+          CONTENT CALENDAR TAB
+      ══════════════════════════════════════ */}
+      {tab === "calendar" && (() => {
+        const today = new Date();
+        const { first, total } = calDays;
+        const dayCells = [];
+        for (let i = 0; i < first; i++) dayCells.push(null);
+        for (let d = 1; d <= total; d++) dayCells.push(d);
+        return (
+          <div>
+            {/* Month nav */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <button onClick={() => setCalMonth(p => { const d = new Date(p.y, p.m - 1, 1); return { y: d.getFullYear(), m: d.getMonth() }; })} style={{ ...A.ghost, padding: "8px 16px" }}>← Prev</button>
+              <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>{MONTH_NAMES[calMonth.m]} {calMonth.y}</div>
+              <button onClick={() => setCalMonth(p => { const d = new Date(p.y, p.m + 1, 1); return { y: d.getFullYear(), m: d.getMonth() }; })} style={{ ...A.ghost, padding: "8px 16px" }}>Next →</button>
+            </div>
+
+            {/* Day-of-week header */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
+                <div key={d} style={{ textAlign: "center", color: "rgba(255,255,255,0.28)", fontSize: 10, fontWeight: 800, letterSpacing: 1.5, padding: "6px 0" }}>{d}</div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+              {dayCells.map((day, i) => {
+                if (!day) return <div key={`e-${i}`} />;
+                const isToday = today.getDate() === day && today.getMonth() === calMonth.m && today.getFullYear() === calMonth.y;
+                const posts = campaignsByDay[day] || [];
+                return (
+                  <div key={day} style={{ minHeight: 88, background: isToday ? "rgba(77,255,143,0.07)" : "rgba(255,255,255,0.02)", border: `1px solid ${isToday ? "rgba(77,255,143,0.3)" : "rgba(255,255,255,0.05)"}`, borderRadius: 10, padding: "8px 9px", overflow: "hidden" }}>
+                    <div style={{ color: isToday ? "#4DFF8F" : "rgba(255,255,255,0.45)", fontWeight: isToday ? 800 : 600, fontSize: 12, marginBottom: 5 }}>{day}</div>
+                    {posts.slice(0, 3).map((c, pi) => (
+                      <div key={pi} style={{ background: "rgba(77,255,143,0.12)", border: "1px solid rgba(77,255,143,0.2)", borderRadius: 5, padding: "2px 6px", marginBottom: 3, overflow: "hidden" }}>
+                        <div style={{ color: "#4DFF8F", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "Campaign"}</div>
+                      </div>
+                    ))}
+                    {posts.length > 3 && <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 600 }}>+{posts.length - 3} more</div>}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+                {campaigns.filter(c => c.scheduled_at).length === 0
+                  ? "No scheduled campaigns. Schedule a campaign to see it appear on the calendar."
+                  : `${campaigns.filter(c => { const d = new Date(c.scheduled_at); return d.getFullYear() === calMonth.y && d.getMonth() === calMonth.m; }).length} campaign(s) this month`
+                }
               </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 28, background: "rgba(77,255,143,0.04)", border: "1px solid rgba(77,255,143,0.12)", borderRadius: 14, padding: "18px 22px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 20 }}>&#x1F4AC;</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: "#fff", fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>Shape what gets built next</div>
-              <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 13 }}>Agency subscribers get early access and direct input on the roadmap. Email us at <span style={{ color: "#4DFF8F" }}>accounts@ophidianai.com</span></div>
             </div>
           </div>
+        );
+      })()}
+
+      {/* ══════════════════════════════════════
+          APPROVAL QUEUE TAB
+      ══════════════════════════════════════ */}
+      {tab === "approvals" && (
+        <div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={A.title}>✅ Approval Queue</div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, lineHeight: 1.6 }}>
+              Campaigns submitted for review appear here. Approve to allow publishing, or reject with a note.
+              <br />
+              <span style={{ color: "rgba(255,255,255,0.22)", fontSize: 12 }}>Note: To enable the approval workflow, campaigns must be submitted with <code style={{ background: "rgba(255,255,255,0.07)", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>approval_status: "pending"</code>. Run the SQL migration below to add the column.</span>
+            </div>
+          </div>
+
+          {/* SQL migration hint */}
+          <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "14px 18px", marginBottom: 20, fontFamily: "monospace", fontSize: 11.5, color: "rgba(165,180,252,0.8)", lineHeight: 1.8 }}>
+            <div style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 11, letterSpacing: 1.5, marginBottom: 6, fontFamily: "inherit" }}>SUPABASE MIGRATION</div>
+            ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft';<br />
+            ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS approval_note TEXT DEFAULT '';
+          </div>
+
+          {approvalsLoading ? (
+            <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)" }}>Loading queue…</div>
+          ) : approvals.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", border: "1.5px dashed rgba(77,255,143,0.1)", borderRadius: 14 }}>
+              <div style={{ fontSize: 40, marginBottom: 14 }}>✅</div>
+              <div style={{ color: "rgba(255,255,255,0.5)", fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Queue is clear</div>
+              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 13 }}>No campaigns are awaiting approval right now.</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {approvals.map(c => (
+                <div key={c.id} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,193,7,0.2)", borderRadius: 14, padding: "18px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ color: "#fff", fontWeight: 700, fontSize: 14.5, marginBottom: 6 }}>{c.name || "Untitled Campaign"}</div>
+                      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12.5, marginBottom: 8 }}>
+                        {c.description || "No description provided."}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ background: "rgba(255,193,7,0.1)", color: "#FCD34D", fontSize: 10, fontWeight: 700, letterSpacing: 1.2, padding: "2px 9px", borderRadius: 20 }}>⏳ PENDING</span>
+                        {c.created_at && <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 11 }}>{new Date(c.created_at).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                      <button onClick={() => decideApproval(c.id, "rejected")} disabled={approvalBusy === c.id} style={{ background: "rgba(255,59,48,0.08)", color: "#FCA5A5", border: "1px solid rgba(255,59,48,0.2)", borderRadius: 9, padding: "9px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                        {approvalBusy === c.id ? "…" : "✕ Reject"}
+                      </button>
+                      <button onClick={() => decideApproval(c.id, "approved")} disabled={approvalBusy === c.id} style={{ background: "linear-gradient(135deg,#0F5C28,#2ECC71)", color: "#fff", border: "none", borderRadius: 9, padding: "9px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                        {approvalBusy === c.id ? "…" : "✓ Approve"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          BRIEF LIBRARY TAB
+      ══════════════════════════════════════ */}
+      {tab === "briefs" && (
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={A.title}>📁 Brief Library</div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>Save reusable campaign briefs your team can launch from in one click.</div>
+            </div>
+            <button onClick={() => setBriefFormOpen(p => !p)} style={A.btn}>
+              {briefFormOpen ? "✕ Cancel" : "+ New Brief"}
+            </button>
+          </div>
+
+          {/* Create form */}
+          {briefFormOpen && (
+            <div style={{ ...A.card, borderColor: "rgba(77,255,143,0.25)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={A.label}>Brief Title *</label>
+                  <input value={briefForm.title} onChange={e => setBriefForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Q2 Product Launch" style={A.inp} />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={A.label}>Description</label>
+                  <textarea value={briefForm.description} onChange={e => setBriefForm(p => ({ ...p, description: e.target.value }))} placeholder="What's the campaign about? Context for your team…" rows={2} style={{ ...A.inp, resize: "vertical", lineHeight: 1.6 }} />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={A.label}>Campaign Objective</label>
+                  <input value={briefForm.objective} onChange={e => setBriefForm(p => ({ ...p, objective: e.target.value }))} placeholder="e.g. Drive holiday sales, grow email list, launch new product…" style={A.inp} />
+                </div>
+                <div>
+                  <label style={A.label}>Default Tone</label>
+                  <select value={briefForm.tone} onChange={e => setBriefForm(p => ({ ...p, tone: e.target.value }))}
+                    style={{ ...A.inp, cursor: "pointer", colorScheme: "dark" }}>
+                    {TONE_OPTS.map(t => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={A.label}>Tags (comma-separated)</label>
+                  <input value={briefForm.tags} onChange={e => setBriefForm(p => ({ ...p, tags: e.target.value }))} placeholder="e.g. seasonal, product, promo" style={A.inp} />
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button onClick={saveBreif} disabled={briefBusy || !briefForm.title.trim()} style={A.btn}>
+                  {briefBusy ? "Saving…" : "Save Brief"}
+                </button>
+                {briefMsg && <span style={{ color: briefMsg.type === "success" ? "#86EFAC" : "#FCA5A5", fontSize: 13, fontWeight: 600 }}>{briefMsg.text}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* SQL migration hint */}
+          <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "14px 18px", marginBottom: 16, fontFamily: "monospace", fontSize: 11, color: "rgba(165,180,252,0.7)", lineHeight: 1.8 }}>
+            <span style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 10, letterSpacing: 1.5, fontFamily: "inherit" }}>SUPABASE TABLE REQUIRED — </span>
+            CREATE TABLE IF NOT EXISTS agency_briefs (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE, title TEXT NOT NULL, description TEXT DEFAULT '', objective TEXT DEFAULT '', tone TEXT DEFAULT 'professional', tags TEXT[] DEFAULT ARRAY[]::TEXT[], created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE agency_briefs ENABLE ROW LEVEL SECURITY; CREATE POLICY "owner_all" ON agency_briefs FOR ALL USING (owner_id = auth.uid());
+          </div>
+
+          {briefsLoading ? (
+            <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)" }}>Loading briefs…</div>
+          ) : briefs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "50px 20px", border: "1.5px dashed rgba(77,255,143,0.1)", borderRadius: 14 }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📁</div>
+              <div style={{ color: "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>No briefs yet</div>
+              <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 13 }}>Create your first reusable campaign brief above.</div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+              {briefs.map(b => (
+                <div key={b.id} style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(77,255,143,0.1)", borderRadius: 14, padding: "18px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{b.title}</div>
+                    <button onClick={() => deleteBrief(b.id)} style={{ background: "none", border: "none", color: "rgba(255,100,100,0.35)", fontSize: 14, cursor: "pointer", padding: 0, flexShrink: 0 }}>✕</button>
+                  </div>
+                  {b.description && <div style={{ color: "rgba(255,255,255,0.38)", fontSize: 12.5, lineHeight: 1.55 }}>{b.description}</div>}
+                  {b.objective && (
+                    <div style={{ background: "rgba(77,255,143,0.06)", border: "1px solid rgba(77,255,143,0.12)", borderRadius: 8, padding: "7px 10px" }}>
+                      <div style={{ color: "rgba(255,255,255,0.28)", fontSize: 9.5, fontWeight: 800, letterSpacing: 1.5, marginBottom: 2 }}>OBJECTIVE</div>
+                      <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 12.5 }}>{b.objective}</div>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: 1, padding: "2px 9px", borderRadius: 20, textTransform: "capitalize" }}>{b.tone}</span>
+                    {(b.tags || []).map(t => (
+                      <span key={t} style={{ background: "rgba(77,255,143,0.08)", color: "#86EFAC", fontSize: 10, padding: "2px 8px", borderRadius: 20 }}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════
+          ACTIVITY FEED TAB
+      ══════════════════════════════════════ */}
+      {tab === "activity" && (
+        <div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={A.title}>📊 Team Activity Feed</div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>A real-time log of every action your team takes — campaigns, approvals, and team changes.</div>
+          </div>
+
+          {/* SQL migration hint */}
+          <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "14px 18px", marginBottom: 16, fontFamily: "monospace", fontSize: 11, color: "rgba(165,180,252,0.7)", lineHeight: 1.8 }}>
+            <span style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 10, letterSpacing: 1.5, fontFamily: "inherit" }}>SUPABASE TABLE REQUIRED — </span>
+            CREATE TABLE IF NOT EXISTS agency_activity (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE, actor TEXT NOT NULL, action TEXT NOT NULL, detail TEXT DEFAULT '', icon TEXT DEFAULT '◉', created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE agency_activity ENABLE ROW LEVEL SECURITY; CREATE POLICY "owner_all" ON agency_activity FOR ALL USING (owner_id = auth.uid());
+          </div>
+
+          {activityLoading ? (
+            <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)" }}>Loading feed…</div>
+          ) : activity.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px", border: "1.5px dashed rgba(77,255,143,0.1)", borderRadius: 14 }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
+              <div style={{ color: "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>No activity yet</div>
+              <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 13 }}>Actions your team takes will appear here once the table is created in Supabase.</div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {activity.map((a, i) => {
+                const time = new Date(a.created_at);
+                const label = time.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " · " + time.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                return (
+                  <div key={a.id || i} style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "rgba(77,255,143,0.08)", border: "1px solid rgba(77,255,143,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, flexShrink: 0 }}>{a.icon || "◉"}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: "#fff", fontSize: 13.5 }}>
+                        <span style={{ fontWeight: 700, color: "#86EFAC" }}>{a.actor}</span>
+                        <span style={{ color: "rgba(255,255,255,0.55)" }}> {a.action}</span>
+                        {a.detail && <span style={{ color: "rgba(255,255,255,0.35)" }}> — {a.detail}</span>}
+                      </div>
+                      <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 11.5, marginTop: 3 }}>{label}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -3678,7 +4038,7 @@ export default function App() {
 
         {/* ══════════ AGENCY ══════════ */}
         {screen === "agency" && (
-          <AgencyScreen session={session} user={user} userPlan={userPlan} />
+          <AgencyScreen session={session} user={user} userPlan={userPlan} campaigns={campaigns} />
         )}
 
       </div>
