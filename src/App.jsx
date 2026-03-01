@@ -1168,16 +1168,7 @@ function AgencyScreen({ user, session, userPlan, campaigns = [] }) {
             <div style={A.title}>✅ Approval Queue</div>
             <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, lineHeight: 1.6 }}>
               Campaigns submitted for review appear here. Approve to allow publishing, or reject with a note.
-              <br />
-              <span style={{ color: "rgba(255,255,255,0.22)", fontSize: 12 }}>Note: To enable the approval workflow, campaigns must be submitted with <code style={{ background: "rgba(255,255,255,0.07)", padding: "1px 6px", borderRadius: 4, fontSize: 11 }}>approval_status: "pending"</code>. Run the SQL migration below to add the column.</span>
             </div>
-          </div>
-
-          {/* SQL migration hint */}
-          <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "14px 18px", marginBottom: 20, fontFamily: "monospace", fontSize: 11.5, color: "rgba(165,180,252,0.8)", lineHeight: 1.8 }}>
-            <div style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 11, letterSpacing: 1.5, marginBottom: 6, fontFamily: "inherit" }}>SUPABASE MIGRATION</div>
-            ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft';<br />
-            ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS approval_note TEXT DEFAULT '';
           </div>
 
           {approvalsLoading ? (
@@ -1271,12 +1262,6 @@ function AgencyScreen({ user, session, userPlan, campaigns = [] }) {
             </div>
           )}
 
-          {/* SQL migration hint */}
-          <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "14px 18px", marginBottom: 16, fontFamily: "monospace", fontSize: 11, color: "rgba(165,180,252,0.7)", lineHeight: 1.8 }}>
-            <span style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 10, letterSpacing: 1.5, fontFamily: "inherit" }}>SUPABASE TABLE REQUIRED — </span>
-            CREATE TABLE IF NOT EXISTS agency_briefs (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE, title TEXT NOT NULL, description TEXT DEFAULT '', objective TEXT DEFAULT '', tone TEXT DEFAULT 'professional', tags TEXT[] DEFAULT ARRAY[]::TEXT[], created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE agency_briefs ENABLE ROW LEVEL SECURITY; CREATE POLICY "owner_all" ON agency_briefs FOR ALL USING (owner_id = auth.uid());
-          </div>
-
           {briefsLoading ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)" }}>Loading briefs…</div>
           ) : briefs.length === 0 ? (
@@ -1323,19 +1308,13 @@ function AgencyScreen({ user, session, userPlan, campaigns = [] }) {
             <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>A real-time log of every action your team takes — campaigns, approvals, and team changes.</div>
           </div>
 
-          {/* SQL migration hint */}
-          <div style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 12, padding: "14px 18px", marginBottom: 16, fontFamily: "monospace", fontSize: 11, color: "rgba(165,180,252,0.7)", lineHeight: 1.8 }}>
-            <span style={{ color: "#A5B4FC", fontWeight: 700, fontSize: 10, letterSpacing: 1.5, fontFamily: "inherit" }}>SUPABASE TABLE REQUIRED — </span>
-            CREATE TABLE IF NOT EXISTS agency_activity (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE, actor TEXT NOT NULL, action TEXT NOT NULL, detail TEXT DEFAULT '', icon TEXT DEFAULT '◉', created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE agency_activity ENABLE ROW LEVEL SECURITY; CREATE POLICY "owner_all" ON agency_activity FOR ALL USING (owner_id = auth.uid());
-          </div>
-
           {activityLoading ? (
             <div style={{ textAlign: "center", padding: "60px 0", color: "rgba(255,255,255,0.25)" }}>Loading feed…</div>
           ) : activity.length === 0 ? (
             <div style={{ textAlign: "center", padding: "60px 20px", border: "1.5px dashed rgba(77,255,143,0.1)", borderRadius: 14 }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
               <div style={{ color: "rgba(255,255,255,0.45)", fontWeight: 700, fontSize: 14, marginBottom: 6 }}>No activity yet</div>
-              <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 13 }}>Actions your team takes will appear here once the table is created in Supabase.</div>
+              <div style={{ color: "rgba(255,255,255,0.22)", fontSize: 13 }}>Actions your team takes will appear here automatically.</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
